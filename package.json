@@ -1,0 +1,19 @@
+{
+  "name": "tls-check",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm test --workspaces --if-present",
+    "build": "npm run build -w client"
+  }
+}

@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+main {
+  max-width: 40rem;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+}
+
+.input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* The https:// prefix and the text box look like one field. */
+.input-group {
+  display: flex;
+  flex: 1;
+  border: 1px solid #888;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.input-group:focus-within {
+  outline: 2px solid #4a7dff;
+  outline-offset: 1px;
+}
+
+.prefix {
+  padding: 0.5rem 0.25rem 0.5rem 0.6rem;
+  color: #888;
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.6rem 0.5rem 0;
+  border: none;
+  outline: none;
+  font: inherit;
+  background: transparent;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  font: inherit;
+}
+
+pre {
+  overflow-x: auto;
+}

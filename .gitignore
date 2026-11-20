@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Client build output (Vite)
+client/dist/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# Editor and OS files
+.DS_Store
+.vscode/
+.idea/
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# Private droplet setup notes
+docs/droplet-setup.md
