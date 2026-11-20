@@ -77,3 +77,7 @@ A DigitalOcean droplet. Nginx serves the client build and passes `/api/` to Node
 ## Testing against real sites
 
 [badssl.com](https://badssl.com/) has a subdomain for each kind of certificate problem, such as `expired.badssl.com`, `wrong.host.badssl.com` and `self-signed.badssl.com`.
+
+## License
+
+[MIT](LICENSE)
