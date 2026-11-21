@@ -21,6 +21,9 @@ export function App() {
       });
       if (res.ok) {
         setResult((await res.json()) as CheckResponse);
+      } else if (res.status === 429) {
+        // Sent by Nginx's per-IP rate limit
+        setError("Too many checks. Wait a minute and try again.");
       } else {
         const body = (await res.json().catch(() => null)) as ErrorResponse | null;
         setError(body?.error ?? `Request failed (${res.status})`);
