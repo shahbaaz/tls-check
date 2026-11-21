@@ -98,7 +98,7 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 ## Milestones
 
 1. [x] **Skeleton, deployed:** a form that calls `POST /api/check` and gets a stub reply, live at `tls.shahbaaz.dev` behind Nginx, systemd and Certbot.
-2. [ ] **Connection checks:** domain not found, nothing on port 443, not speaking TLS.
+2. [x] **Connection checks:** domain not found, nothing on port 443, not speaking TLS.
 3. [ ] **Certificate details plus easy checks:** expired, wrong host, self-signed.
 4. [ ] **Chain checks:** untrusted root, incomplete chain.
 5. [ ] **Later:** revoked, no Common Name, no Subject.
