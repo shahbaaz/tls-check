@@ -31,7 +31,9 @@ export async function checkConnection(
   try {
     addresses = await options.resolve(host);
   } catch (err) {
-    return checked(fail("dns", dnsMessage(err)), skip("port_443", "domain not found"), skip("tls_handshake", "domain not found"));
+    const message = dnsMessage(err);
+    const reason = message === "Domain not found" ? "domain not found" : "DNS lookup failed";
+    return checked(fail("dns", message), skip("port_443", reason), skip("tls_handshake", reason));
   }
   const address = addresses[0];
   if (address === undefined) {

@@ -49,6 +49,7 @@ export function createApp(connectionOptions: ConnectionOptions = defaultConnecti
   // Return JSON errors (e.g. malformed request bodies) instead of Express's HTML page.
   const onError: ErrorRequestHandler = (err, _req, res, _next) => {
     const status: number = typeof err?.status === "number" ? err.status : 500;
+    if (status >= 500) console.error(err); // shows up in journalctl
     const body: ErrorResponse = {
       error: status < 500 ? "Invalid request" : "Internal server error",
     };

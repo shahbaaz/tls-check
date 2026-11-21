@@ -58,6 +58,16 @@ test("DNS failure fails dns and skips the rest", async () => {
   assert.equal(result.kind === "checked" && result.checks[0]?.message, "Domain not found");
 });
 
+test("a temporary DNS failure says so in every row", async () => {
+  const again = Object.assign(new Error("try again"), { code: "EAI_AGAIN" });
+  const result = await checkConnection("flaky.example", options(1, { resolve: async () => Promise.reject(again) }));
+  assert.deepEqual(result.kind === "checked" && result.checks.map((c) => c.message), [
+    "DNS lookup failed (EAI_AGAIN)",
+    "Skipped: DNS lookup failed",
+    "Skipped: DNS lookup failed",
+  ]);
+});
+
 test("a blocked address is refused before connecting", async () => {
   const result = await checkConnection("internal.example", options(1, { isBlocked: () => true }));
   assert.deepEqual(result, { kind: "blocked" });
