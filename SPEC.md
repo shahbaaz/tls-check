@@ -1,4 +1,5 @@
 ### tls.shahbaaz.dev
+
 Find out what exactly is wrong about your website's certificate
 
 Input:
@@ -7,6 +8,7 @@ Users can enter their website address in a text box and submit
 Output:
 If no https, then website is not secure
 If https, then Certificate details with final verdict about security
+
 - Expired
 - Wrong host
 - Self signed
@@ -43,7 +45,7 @@ https://badssl.com/ (Certificate issues urls)
 1. Clean up and validate the input domain.
 2. DNS lookup. If it fails, report "Domain not found".
 3. **Block private and internal IP addresses**, so the public server can't be used to probe the droplet's own network.
-4. Connect to port 443 over TLS with validation errors *not* stopping the connection (`rejectUnauthorized: false`), and collect the full certificate chain.
+4. Connect to the checked IP address (not the name again, so DNS can't change in between), sending the domain as SNI. Connect to port 443 over TLS with validation errors _not_ stopping the connection (`rejectUnauthorized: false`), and collect the full certificate chain.
 5. Run each check separately against the collected chain and return the list.
 
 ### API
@@ -55,35 +57,35 @@ https://badssl.com/ (Certificate issues urls)
   "host": "expired.badssl.com",
   "verdict": "not_secure",
   "checks": [
-    { "id": "expired",    "status": "fail", "message": "Expired 2015-04-12" },
+    { "id": "expired", "status": "fail", "message": "Expired 2015-04-12" },
     { "id": "wrong_host", "status": "pass" }
   ],
-  "certificate": { "subject": "...", "issuer": "...", "validTo": "...", "chain": [] }
+  "certificate": {
+    "subject": "...",
+    "issuer": "...",
+    "validTo": "...",
+    "chain": []
+  }
 }
 ```
 
 - `verdict`: `secure` | `not_secure` | `unknown`
 - `status`: `pass` | `fail` | `skip` (skip = couldn't check)
-- Invalid input returns `400` with `{ "error": "..." }`.
+- Connection checks come first: `dns`, `port_443`, `tls_handshake`. When one fails, the later ones are `skip`.
+- `certificate` is `null` when no certificate was collected (DNS, port 443 or the TLS handshake failed).
+- Invalid input, or a domain that resolves to a private or internal address, returns `400` with `{ "error": "..." }`.
+- Nginx rate-limits `/api/` per client IP; over the limit returns `429`.
 - `GET /api/health` returns `{ "ok": true }` for deploy checks.
 
 ## Tech stack
 
-| Area | Choice |
-|---|---|
-| Runtime | Node 26 LTS. The server's TypeScript runs directly with Node's type stripping, so the server has no build step (`tsc` is only used for type checking). |
-| Package manager | npm workspaces (`server/`, `client/`). No pnpm, no Nx for now. |
-| Server | Express + TypeScript, using Node's built-in `tls`, `dns` and `crypto` modules (no TLS libraries). |
-| Client | Vite + React + TypeScript, a single page. In development, Vite passes `/api` requests to the server. |
-| Tests | Node's built-in test runner (`node --test`). |
-
-## Hosting
-
-- DigitalOcean droplet (1 vCPU, 2 GB RAM, 50 GB disk). The `tls.shahbaaz.dev` A record already points there. The IP and login details are in the gitignored `docs/droplet-setup.md`.
-- **Nginx** (already installed) serves the React build and passes `/api/` to Node on `127.0.0.1:3000`.
-- **systemd** keeps the Node server running and restarts it if it crashes.
-- **Certbot** (Let's Encrypt) provides the certificate for `tls.shahbaaz.dev`.
-- Node 26 LTS needs to be installed on the droplet.
+| Area            | Choice                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime         | Node 26 LTS. The server's TypeScript runs directly with Node's type stripping, so the server has no build step (`tsc` is only used for type checking). |
+| Package manager | npm workspaces (`server/`, `client/`). No pnpm, no Nx for now.                                                                                         |
+| Server          | Express + TypeScript, using Node's built-in `tls`, `dns` and `crypto` modules (no TLS libraries).                                                      |
+| Client          | Vite + React + TypeScript, a single page. In development, Vite passes `/api` requests to the server.                                                   |
+| Tests           | Node's built-in test runner (`node --test`).                                                                                                           |
 
 ## CI/CD: GitHub Actions
 
@@ -95,9 +97,9 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 
 ## Milestones
 
-1. **Skeleton, deployed:** a form that calls `POST /api/check` and gets a stub reply, live at `tls.shahbaaz.dev` behind Nginx, systemd and Certbot.
-2. **Connection checks:** domain not found, nothing on port 443, not speaking TLS.
-3. **Certificate details plus easy checks:** expired, wrong host, self-signed.
-4. **Chain checks:** untrusted root, incomplete chain.
-5. **Later:** revoked, no Common Name, no Subject.
-6. **GitHub Actions:** CI first, then CD.
+1. [x] **Skeleton, deployed:** a form that calls `POST /api/check` and gets a stub reply, live at `tls.shahbaaz.dev` behind Nginx, systemd and Certbot.
+2. [ ] **Connection checks:** domain not found, nothing on port 443, not speaking TLS.
+3. [ ] **Certificate details plus easy checks:** expired, wrong host, self-signed.
+4. [ ] **Chain checks:** untrusted root, incomplete chain.
+5. [ ] **Later:** revoked, no Common Name, no Subject.
+6. [ ] **GitHub Actions:** CI first, then CD.

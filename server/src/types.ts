@@ -6,7 +6,7 @@ export type Verdict = "secure" | "not_secure" | "unknown";
 export type CheckStatus = "pass" | "fail" | "skip";
 
 export interface CheckResult {
-  id: string;
+  id: string; // e.g. "dns", "port_443", "tls_handshake"
   status: CheckStatus;
   message?: string;
 }
@@ -22,7 +22,7 @@ export interface CheckResponse {
   host: string;
   verdict: Verdict;
   checks: CheckResult[];
-  // null when no certificate was collected (stub, or the site has no https)
+  // null when no certificate was collected (e.g. DNS, port 443 or the TLS handshake failed)
   certificate: CertificateSummary | null;
 }
 

@@ -25,14 +25,14 @@ It also reports sites with no https: the domain isn't found, nothing answers on 
 
 ```bash
 npm install
-npm run dev:server   # terminal 1: API on http://127.0.0.1:3000
-npm run dev:client   # terminal 2: open the URL Vite prints
+npm run dev   # API on http://127.0.0.1:3000; open the URL Vite prints
 ```
 
 ## Commands
 
 | Command | What it does |
 |---|---|
+| `npm run dev` | Start the API and the Vite dev server together |
 | `npm run dev:server` | Start the API and restart it when files change |
 | `npm run dev:client` | Start the Vite dev server, which passes `/api` to the API |
 | `npm run typecheck` | Type-check the server and client |

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**`SPEC.md` is the source of truth** for requirements and decisions: product behavior, the API, the tech stack, hosting, CI/CD and the milestones. Read it before starting any work. The scaffold exists; `POST /api/check` is still a stub.
+**`SPEC.md` is the source of truth** for requirements and decisions: product behavior, the API, the tech stack, CI/CD and the milestones. The scaffold exists; `POST /api/check` is still a stub.
 
 This is the owner's personal learning project. They want to talk through decisions before any files are created or changed, so wait for an explicit go-ahead before building.
 
@@ -26,7 +26,7 @@ Build in SPEC.md milestone order; revocation comes last.
 Run from the repo root:
 
 - `npm install`
-- `npm run dev:server` (Express on `127.0.0.1:3000`, restarts on change) and `npm run dev:client` (Vite, passes `/api` to the server). Run each in its own terminal.
+- `npm run dev`: runs the server (Express on `127.0.0.1:3000`, restarts on change) and the client (Vite, passes `/api` to the server) together. `npm run dev:server` and `npm run dev:client` run one each.
 - `npm run typecheck`: `tsc` for both workspaces. It also rejects syntax Node can't strip (`erasableSyntaxOnly`).
 - `npm test`: server tests.
 - `npm run build`: client build into `client/dist/`.
