@@ -2,6 +2,7 @@ import type { X509Certificate } from "node:crypto";
 import { isSelfSigned } from "./certificate.ts";
 import { fail, pass, skip } from "./check-result.ts";
 import { crlUrl, issuerAndSerial, parseCrl, verifyCrl } from "./crl.ts";
+import { DerError } from "./der.ts";
 import { FetchError, defaultFetchOptions, fetchCrl } from "./crl-fetch.ts";
 import type { CheckResult } from "./types.ts";
 
@@ -68,12 +69,20 @@ export async function checkRevocation(
   cache: CrlCache,
 ): Promise<CheckResult> {
   if (isSelfSigned(leaf)) return skipRevocationCheck("certificate is self-signed");
-  const url = crlUrl(leaf);
+  // Node accepts certificates whose extension contents are malformed (OpenSSL doesn't decode them all).
+  let url: string | undefined;
+  let leafId: ReturnType<typeof issuerAndSerial>;
+  try {
+    url = crlUrl(leaf);
+    leafId = issuerAndSerial(leaf);
+  } catch (err) {
+    if (!(err instanceof DerError)) throw err;
+    return skipRevocationCheck("couldn't read the certificate's CRL details");
+  }
   if (!url) return skipRevocationCheck("the certificate lists no CRL (the CA may only offer OCSP)");
   // The CRL is only trustworthy once the issuer's key has verified it.
   if (!issuer) return skipRevocationCheck("the issuer certificate isn't available");
 
-  const leafId = issuerAndSerial(leaf);
   let crl = cache.get(url, issuer.fingerprint256, now);
   if (!crl) {
     const result = await download(url, leafId.issuer, issuer, now, options);
@@ -111,6 +120,10 @@ async function download(
   if (!crl.issuer.equals(leafIssuer) || !verifyCrl(crl, issuer)) {
     return { skip: "the CRL's signature doesn't match the issuer" };
   }
+  // A CA's list split into parts: each part names its own URL and they're all validly signed, so a
+  // swapped-in part would hide the revocation.
+  if (crl.scope && !crl.scope.includes(url)) return { skip: "the downloaded CRL is for a different URL" };
+  if (crl.unsupported) return { skip: "the CRL uses features this check doesn't support" };
   if (!crl.nextUpdate || crl.nextUpdate <= now) return { skip: "the CRL is out of date" };
   const expires = new Date(Math.min(crl.nextUpdate.getTime(), now.getTime() + MAX_CACHE_MS));
   return { revoked: crl.revoked, issuerFingerprint: issuer.fingerprint256, expires };

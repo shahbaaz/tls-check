@@ -12,9 +12,16 @@ export interface Crl {
   signedPart: Buffer; // DER of tbsCertList, the part the signature covers
   signatureAlgorithm: string; // OID
   signature: Buffer;
+  // The URLs in the Issuing Distribution Point: a CA that splits its list into parts (shards)
+  // names the part's own URL here. undefined when the CRL has no such extension.
+  scope: string[] | undefined;
+  // The CRL uses something this check doesn't handle (a delta CRL, a list limited to CA
+  // certificates or some reasons, an unknown critical extension), so it can't give a clear answer.
+  unsupported: boolean;
 }
 
 const CRL_DISTRIBUTION_POINTS = "2.5.29.31";
+const ISSUING_DISTRIBUTION_POINT = "2.5.29.28";
 const TIME_TAGS = new Set([0x17, 0x18]); // UTCTime, GeneralizedTime
 const URI_TAG = 0x86; // GeneralName uniformResourceIdentifier [6]
 
@@ -55,6 +62,25 @@ export function parseCrl(der: Buffer): Crl {
       const [serial, date] = sequence(entry, 2);
       revoked.set(integerKey(serial!), readTime(date!));
     }
+    i++;
+  }
+
+  // crlExtensions [0] EXPLICIT SEQUENCE OF Extension
+  let scope: string[] | undefined;
+  let unsupported = false;
+  if (fields[i]?.tag === 0xa0) {
+    for (const extension of sequence(field(children(fields[i]!), 0), 0)) {
+      const { id, critical, value } = readExtension(extension);
+      if (id === ISSUING_DISTRIBUTION_POINT) {
+        // IssuingDistributionPoint ::= SEQUENCE { distributionPoint [0], onlyContainsUserCerts [1], ... }
+        // Anything past those two narrows the list in ways this check doesn't follow.
+        const parts = sequence(readTlv(value), 0);
+        scope = parts.filter((p) => p.tag === 0xa0).flatMap(uris);
+        if (parts.some((p) => p.tag !== 0xa0 && p.tag !== 0x81)) unsupported = true;
+      } else if (critical) {
+        unsupported = true; // RFC 5280: a CRL with an unknown critical extension must not be used
+      }
+    }
   }
 
   return {
@@ -65,6 +91,8 @@ export function parseCrl(der: Buffer): Crl {
     signedPart: tbs.bytes,
     signatureAlgorithm: readOid(field(sequence(algorithm, 1), 0)),
     signature: signatureValue.value.subarray(1), // drop the "unused bits" byte
+    scope,
+    unsupported,
   };
 }
 
@@ -82,11 +110,8 @@ export function verifyCrl(crl: Crl, issuer: X509Certificate): boolean {
 // The first http:// URL in the certificate's CRL Distribution Points extension.
 export function crlUrl(cert: X509Certificate): string | undefined {
   for (const extension of extensions(cert)) {
-    const [id, ...rest] = children(extension);
-    if (!id || readOid(id) !== CRL_DISTRIBUTION_POINTS) continue;
-    const value = rest[rest.length - 1]; // extnValue OCTET STRING (after the optional critical flag)
-    if (value?.tag !== 0x04) return undefined;
-    return uris(readTlv(value.value)).find((uri) => uri.startsWith("http://"));
+    const { id, value } = readExtension(extension);
+    if (id === CRL_DISTRIBUTION_POINTS) return uris(readTlv(value)).find((uri) => uri.startsWith("http://"));
   }
   return undefined;
 }
@@ -107,6 +132,17 @@ function tbsFields(cert: X509Certificate): Tlv[] {
 function extensions(cert: X509Certificate): Tlv[] {
   const wrapper = tbsFields(cert).find((f) => f.tag === 0xa3); // [3] EXPLICIT Extensions
   return wrapper ? sequence(field(children(wrapper), 0), 0) : [];
+}
+
+// Extension ::= SEQUENCE { extnID OID, critical BOOLEAN DEFAULT FALSE, extnValue OCTET STRING }
+function readExtension(extension: Tlv): { id: string; critical: boolean; value: Buffer } {
+  const parts = sequence(extension, 2);
+  const flag = parts.length > 2 ? field(parts, 1, 0x01) : undefined;
+  return {
+    id: readOid(field(parts, 0)),
+    critical: flag !== undefined && flag.value[0] !== 0,
+    value: field(parts, parts.length - 1, 0x04).value,
+  };
 }
 
 // Every URI anywhere inside a DistributionPoints structure.

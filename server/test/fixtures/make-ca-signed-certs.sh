@@ -11,7 +11,11 @@
 #   no-subject-cert.pem, -key    empty subject, SAN test.example
 #   crl-leaf-cert.pem, -key      test.example with a CRL URL, signed by the root, not revoked
 #   revoked-leaf-cert.pem, -key  the same, but listed as revoked in root.crl
-#   root.crl                     the root's CRL (DER), listing revoked-leaf-cert.pem
+#   root.crl                     the root's CRL (DER), listing revoked-leaf-cert.pem; its Issuing
+#                                Distribution Point names http://crl.test.example/root.crl
+#   other-shard.crl              the same, but naming another URL (a different shard of the list)
+#   unknown-critical.crl         the same, plus a critical extension the check doesn't know
+#   bad-crl-ext-cert.pem         test.example, its CRL Distribution Points bytes malformed
 #
 # (test-cert.pem is a separate self-signed certificate for test.example.)
 set -eu
@@ -60,6 +64,13 @@ sign no-subject.csr ca-cert.pem ca-key.pem no-subject-cert.pem \
   "subjectAltName = critical, DNS:test.example
 basicConstraints = CA:FALSE"
 
+openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+  -subj "/CN=test.example" -keyout bad-crl-ext-key.pem -out bad-crl-ext.csr
+sign bad-crl-ext.csr ca-cert.pem ca-key.pem bad-crl-ext-cert.pem \
+  "subjectAltName = DNS:test.example
+basicConstraints = CA:FALSE
+2.5.29.31 = DER:3003A0011F"
+
 for name in crl-leaf revoked-leaf; do
   openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
     -subj "/CN=test.example" -keyout $name-key.pem -out $name.csr
@@ -78,12 +89,28 @@ database = index.txt
 crlnumber = crlnumber
 default_md = sha256
 default_crl_days = 36500
+crl_extensions = root
+[root]
+issuingDistributionPoint = @root_idp
+[root_idp]
+fullname = URI:http://crl.test.example/root.crl
+[other]
+issuingDistributionPoint = @other_idp
+[other_idp]
+fullname = URI:http://crl.test.example/other.crl
+[unknown]
+issuingDistributionPoint = @root_idp
+1.2.3.4 = critical,DER:0500
 CNF
 : > index.txt
 echo 01 > crlnumber
 openssl ca -config ca.cnf -keyfile ca-key.pem -cert ca-cert.pem -revoke revoked-leaf-cert.pem -crl_reason keyCompromise
 openssl ca -config ca.cnf -keyfile ca-key.pem -cert ca-cert.pem -gencrl -out root-crl.pem
 openssl crl -in root-crl.pem -outform DER -out root.crl
+openssl ca -config ca.cnf -keyfile ca-key.pem -cert ca-cert.pem -gencrl -crlexts other -out other-crl.pem
+openssl crl -in other-crl.pem -outform DER -out other-shard.crl
+openssl ca -config ca.cnf -keyfile ca-key.pem -cert ca-cert.pem -gencrl -crlexts unknown -out unknown-crl.pem
+openssl crl -in unknown-crl.pem -outform DER -out unknown-critical.crl
 
 # The CA keys aren't needed by the tests; rerun this script to make new certificates.
-rm ./*.csr ca.cnf index.txt* crlnumber* root-crl.pem ca-key.pem intermediate-key.pem signed-by-leaf-key.pem
+rm ./*.csr ca.cnf index.txt* crlnumber* root-crl.pem other-crl.pem unknown-crl.pem ca-key.pem bad-crl-ext-key.pem intermediate-key.pem signed-by-leaf-key.pem

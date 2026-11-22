@@ -62,3 +62,14 @@ test("crlUrl finds the CRL Distribution Points URL", () => {
 test("crlUrl is undefined without the extension", () => {
   assert.equal(crlUrl(cert("leaf-cert.pem")), undefined);
 });
+
+test("parseCrl reads the Issuing Distribution Point URLs", () => {
+  assert.deepEqual(parseCrl(rootCrl).scope, ["http://crl.test.example/root.crl"]);
+  assert.deepEqual(parseCrl(file("yr1.crl")).scope, ["http://yr1.c.lencr.org/53.crl"]);
+  assert.equal(parseCrl(rootCrl).unsupported, false);
+  assert.equal(parseCrl(file("yr1.crl")).unsupported, false);
+});
+
+test("parseCrl flags a critical extension it doesn't know", () => {
+  assert.equal(parseCrl(file("unknown-critical.crl")).unsupported, true);
+});

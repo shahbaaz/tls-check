@@ -56,6 +56,9 @@ const skips: [string, () => ReturnType<typeof checkRevocation>, string][] = [
   ["tampered CRL", () => checkRevocation(crlLeaf, ca, now, fakeFetch(tampered), new CrlCache()), "the CRL's signature doesn't match the issuer"],
   ["wrong issuer key", () => checkRevocation(crlLeaf, cert("intermediate-cert.pem"), now, fakeFetch(), new CrlCache()), "the CRL's signature doesn't match the issuer"],
   ["CRL from another CA", () => checkRevocation(crlLeaf, cert("yr1-cert.pem"), now, fakeFetch(file("yr1.crl")), new CrlCache()), "the CRL's signature doesn't match the issuer"],
+  ["malformed CRL extension in the certificate", () => checkRevocation(cert("bad-crl-ext-cert.pem"), ca, now, fakeFetch(), new CrlCache()), "couldn't read the certificate's CRL details"],
+  ["CRL for a different URL (another shard)", () => checkRevocation(crlLeaf, ca, now, fakeFetch(file("other-shard.crl")), new CrlCache()), "the downloaded CRL is for a different URL"],
+  ["CRL with an unknown critical extension", () => checkRevocation(crlLeaf, ca, now, fakeFetch(file("unknown-critical.crl")), new CrlCache()), "the CRL uses features this check doesn't support"],
   ["out-of-date CRL", () => checkRevocation(crlLeaf, ca, new Date("2200-01-01"), fakeFetch(), new CrlCache()), "the CRL is out of date"],
 ];
 
@@ -80,7 +83,7 @@ test("a CRL is downloaded once and then reused", async () => {
 
 test("failures aren't cached", async () => {
   const cache = new CrlCache();
-  for (const body of [new FetchError("HTTP 500"), tampered, Buffer.from([0x30, 0x00])]) {
+  for (const body of [new FetchError("HTTP 500"), tampered, Buffer.from([0x30, 0x00]), file("other-shard.crl")]) {
     const fake = fakeFetch(body);
     await checkRevocation(crlLeaf, ca, now, fake, cache);
     await checkRevocation(crlLeaf, ca, now, fake, cache);
