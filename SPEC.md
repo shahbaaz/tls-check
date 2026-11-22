@@ -46,7 +46,7 @@ https://badssl.com/ (Certificate issues urls)
 - **Untrusted root:** the chain ends at a self-signed root that isn't in the trust store.
 - **Revocation:** checked with the CRL (the CA's list of revoked serial numbers) only; OCSP is dropped (Let's Encrypt has shut it down and browsers barely use it). The leaf fails if its serial number is on the list.
   - "Couldn't check" (skip) when: the certificate has no CRL URL (e.g. OCSP-only CAs), the chain has no issuer to verify the list with, the download fails, the signature doesn't verify, or the list is past its `nextUpdate`. Never a pass.
-  - Fetched safely, since the URL comes from the certificate: `http:` only, resolve the name and block private addresses, connect to that IP, 5 s timeout, 1 MB cap, no redirects. On any failure the connection is destroyed.
+  - Fetched safely, since the URL comes from the certificate: `http:` on port 80 only, resolve the name and block private addresses, connect to that IP, 5 s timeout, 1 MB cap, no redirects. On any failure the connection is destroyed.
   - The DER is parsed by hand and the list's signature verified with the issuer's key from the chain path (an unverified list over plain HTTP could hide a revocation).
   - Cached in memory: only the revoked serials, keyed by URL, until `nextUpdate` (at most 24 h). At most 50 lists; the oldest is dropped first. Expired entries are dropped when looked up; failures aren't cached.
 - **Trust store:** use Node's bundled Mozilla root list (`tls.rootCertificates`). It's the default and the same on the laptop and the droplet. "Untrusted root" means the chain doesn't end at a root on this list.

@@ -15,6 +15,7 @@ export interface FetchOptions {
   isBlocked: (address: string) => boolean;
   timeoutMs: number; // for the whole download, not just until the first byte
   maxBytes: number;
+  port: number; // the only port connected to: CRLs are served on 80
 }
 
 export const defaultFetchOptions: FetchOptions = {
@@ -22,6 +23,7 @@ export const defaultFetchOptions: FetchOptions = {
   isBlocked: isBlockedAddress,
   timeoutMs: 5000,
   maxBytes: 1_000_000,
+  port: 80,
 };
 
 export async function fetchCrl(url: string, options: FetchOptions = defaultFetchOptions): Promise<Buffer> {
@@ -32,6 +34,8 @@ export async function fetchCrl(url: string, options: FetchOptions = defaultFetch
     throw new FetchError("not an http:// URL");
   }
   if (parsed.protocol !== "http:") throw new FetchError("not an http:// URL");
+  // URL drops a default :80, leaving port empty. Other ports could aim the server at any service.
+  if (Number(parsed.port || 80) !== options.port) throw new FetchError(`only port ${options.port} is allowed`);
 
   // URL keeps IPv6 literals in brackets.
   const hostname = parsed.hostname.replace(/^\[(.*)\]$/, "$1");
@@ -53,13 +57,13 @@ export async function fetchCrl(url: string, options: FetchOptions = defaultFetch
   return download(parsed, address, options);
 }
 
-function download(url: URL, address: string, { timeoutMs, maxBytes }: FetchOptions): Promise<Buffer> {
+function download(url: URL, address: string, { timeoutMs, maxBytes, port }: FetchOptions): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     // Connect to the address we checked, not the name again, so DNS can't change in between.
     // agent: false so the connection is closed afterwards rather than kept for reuse.
     const req = http.get({
       host: address,
-      port: url.port || 80,
+      port,
       path: url.pathname + url.search,
       headers: { host: url.host },
       agent: false,
