@@ -6,9 +6,13 @@ import { checkCertificate, skipCertificateChecks, summarizeCertificate } from ".
 
 // leaf-cert.pem: test.example and *.wild.example, signed by the test CA (see fixtures/make-ca-signed-certs.sh).
 // test-cert.pem: self-signed for test.example, with no subject alternative names.
+// no-san-cert.pem: subject O=TLS Check Test (no CN), SAN with an IP address only.
+// no-subject-cert.pem: empty subject, SAN test.example.
 const fixtures = new URL("./fixtures/", import.meta.url);
 const leaf = new X509Certificate(readFileSync(new URL("leaf-cert.pem", fixtures)));
 const selfSigned = new X509Certificate(readFileSync(new URL("test-cert.pem", fixtures)));
+const noSan = new X509Certificate(readFileSync(new URL("no-san-cert.pem", fixtures)));
+const noSubject = new X509Certificate(readFileSync(new URL("no-subject-cert.pem", fixtures)));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const midLife = new Date(leaf.validFromDate.getTime() + 365 * DAY_MS);
@@ -23,7 +27,14 @@ test("a valid CA-signed certificate passes every check", () => {
   const checks = checkCertificate(leaf, "test.example", midLife);
   assert.deepEqual(
     checks.map((c) => `${c.id}:${c.status}`),
-    ["expired:pass", "wrong_host:pass", "self_signed:pass"],
+    [
+      "expired:pass",
+      "wrong_host:pass",
+      "self_signed:pass",
+      "no_alt_names:pass",
+      "no_subject:pass",
+      "no_common_name:pass",
+    ],
   );
 });
 
@@ -77,10 +88,53 @@ test("wrong_host: explains a wildcard that covers one level too few", () => {
   );
 });
 
-test("wrong_host: the Common Name alone doesn't count, as in browsers", () => {
-  const result = check("wrong_host", selfSigned, "test.example");
+test("wrong_host: skips when there are no domain names to match", () => {
+  // test-cert.pem has CN=test.example but no SAN: the Common Name alone doesn't count, as in browsers.
+  for (const cert of [noSan, selfSigned]) {
+    assert.deepEqual(check("wrong_host", cert), {
+      id: "wrong_host",
+      status: "skip",
+      message: "Skipped: no domain names to match",
+    });
+  }
+});
+
+test("no_alt_names: passes and counts the domain names", () => {
+  assert.equal(check("no_alt_names", leaf).message, "Lists 2 domain names");
+  assert.equal(check("no_alt_names", noSubject).message, "Lists 1 domain name");
+});
+
+test("no_alt_names: fails when the SAN has only an IP address", () => {
+  const result = check("no_alt_names", noSan);
   assert.equal(result.status, "fail");
-  assert.equal(result.message, "The certificate doesn't list any domain names");
+  assert.equal(result.message, "Browsers only trust the names listed in the SAN, and this certificate lists none");
+});
+
+test("no_alt_names: fails when there is no SAN at all", () => {
+  assert.equal(check("no_alt_names", selfSigned).status, "fail");
+});
+
+test("no_subject and no_common_name pass with a note for an empty Subject", () => {
+  assert.deepEqual(check("no_subject", noSubject), {
+    id: "no_subject",
+    status: "pass",
+    message: "No Subject (fine: browsers use the SAN)",
+  });
+  assert.deepEqual(check("no_common_name", noSubject), {
+    id: "no_common_name",
+    status: "pass",
+    message: "No Common Name (fine: browsers use the SAN)",
+  });
+});
+
+test("no_common_name passes with a note when the Subject has no CN", () => {
+  assert.equal(check("no_subject", noSan).message, "O=TLS Check Test");
+  assert.equal(check("no_common_name", noSan).message, "No Common Name (fine: browsers use the SAN)");
+});
+
+test("no_subject and no_common_name show the names when present", () => {
+  assert.equal(check("no_subject", leaf).message, "CN=test.example");
+  assert.equal(check("no_common_name", leaf).message, "test.example");
 });
 
 test("self_signed: fails for a self-signed certificate", () => {
@@ -93,6 +147,9 @@ test("skipCertificateChecks gives a skip row per check", () => {
     { id: "expired", status: "skip", message: "Skipped: TLS handshake failed" },
     { id: "wrong_host", status: "skip", message: "Skipped: TLS handshake failed" },
     { id: "self_signed", status: "skip", message: "Skipped: TLS handshake failed" },
+    { id: "no_alt_names", status: "skip", message: "Skipped: TLS handshake failed" },
+    { id: "no_subject", status: "skip", message: "Skipped: TLS handshake failed" },
+    { id: "no_common_name", status: "skip", message: "Skipped: TLS handshake failed" },
   ]);
 });
 
@@ -105,4 +162,8 @@ test("summarizeCertificate returns the leaf's details", () => {
   assert.equal(summary.publicKey, "EC P-256");
   assert.equal(summary.signatureAlgorithm, "ecdsa-with-SHA256");
   assert.equal(summary.fingerprint256, leaf.fingerprint256);
+});
+
+test("summarizeCertificate gives an empty subject instead of throwing", () => {
+  assert.equal(summarizeCertificate(noSubject, []).subject, "");
 });

@@ -7,11 +7,18 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // so under 14 days left means renewal is overdue.
 const EXPIRY_WARNING_DAYS = 14;
 
-export const certificateCheckIds = ["expired", "wrong_host", "self_signed"];
+export const certificateCheckIds = ["expired", "wrong_host", "self_signed", "no_alt_names", "no_subject", "no_common_name"];
 
 // Runs every check on the leaf certificate. Each one runs on its own, so one problem doesn't hide another.
 export function checkCertificate(cert: X509Certificate, host: string, now: Date): CheckResult[] {
-  return [checkExpiry(cert, now), checkHost(cert, host), checkSelfSigned(cert)];
+  return [
+    checkExpiry(cert, now),
+    checkHost(cert, host),
+    checkSelfSigned(cert),
+    checkAltNames(cert),
+    checkSubject(cert),
+    checkCommonName(cert),
+  ];
 }
 
 // Used when no certificate was collected; reason says why, e.g. "TLS handshake failed".
@@ -37,8 +44,9 @@ function checkHost(cert: X509Certificate, host: string): CheckResult {
   // and a wildcard covers one whole label ("*.example.com", not "w*.example.com").
   const matched = cert.checkHost(host, { subject: "never", partialWildcards: false });
   if (matched !== undefined) return pass("wrong_host", matched === host ? `Covers ${host}` : `Covers ${host} (via ${matched})`);
-  const names = altNames(cert);
-  if (names.length === 0) return fail("wrong_host", "The certificate doesn't list any domain names");
+  // No domain names at all is reported once, by no_alt_names.
+  const names = dnsNames(cert);
+  if (names.length === 0) return skip("wrong_host", "no domain names to match");
   const message = `The certificate is for ${listNames(names)}, not ${host}.`;
   // A wildcard that nearly matches (*.example.com for a.b.example.com) is easy to misread, so explain it.
   const nearWildcard = names.find((name) => {
@@ -66,6 +74,27 @@ function checkSelfSigned(cert: X509Certificate): CheckResult {
   return pass("self_signed", `Issued by ${commonName(cert.issuer) ?? oneLine(cert.issuer)}`);
 }
 
+// Browsers stopped falling back to the Common Name in 2017, so a certificate needs its names in the SAN.
+// IP-address entries don't count: we only check domain names.
+function checkAltNames(cert: X509Certificate): CheckResult {
+  const count = dnsNames(cert).length;
+  if (count === 0) {
+    return fail("no_alt_names", "Browsers only trust the names listed in the SAN, and this certificate lists none");
+  }
+  return pass("no_alt_names", `Lists ${count} domain name${count === 1 ? "" : "s"}`);
+}
+
+// A missing Subject or Common Name isn't a problem today: browsers use only the SAN,
+// and CAs are dropping the Common Name. These rows only explain what's there.
+function checkSubject(cert: X509Certificate): CheckResult {
+  const subject = oneLine(cert.subject);
+  return pass("no_subject", subject || "No Subject (fine: browsers use the SAN)");
+}
+
+function checkCommonName(cert: X509Certificate): CheckResult {
+  return pass("no_common_name", commonName(cert.subject) ?? "No Common Name (fine: browsers use the SAN)");
+}
+
 // Self-signed: the certificate names itself as issuer and its own key signed it.
 export function isSelfSigned(cert: X509Certificate): boolean {
   return cert.checkIssued(cert) && cert.verify(cert.publicKey);
@@ -86,14 +115,15 @@ export function summarizeCertificate(cert: X509Certificate, chain: ChainCertific
   };
 }
 
-// Node gives names one field per line ("C=US\nCN=example.com").
-export function oneLine(name: string): string {
-  return name.split("\n").filter(Boolean).join(", ");
+// Node gives names one field per line ("C=US\nCN=example.com"), and no string at all for an empty name
+// (despite its types), so both helpers accept a missing name.
+export function oneLine(name: string | null | undefined): string {
+  return (name ?? "").split("\n").filter(Boolean).join(", ");
 }
 
 // The CN field of a name, e.g. "COMODO RSA Domain Validation Secure Server CA".
-export function commonName(name: string): string | undefined {
-  return name.split("\n").find((field) => field.startsWith("CN="))?.slice(3) || undefined;
+export function commonName(name: string | null | undefined): string | undefined {
+  return (name ?? "").split("\n").find((field) => field.startsWith("CN="))?.slice(3) || undefined;
 }
 
 const curveNames: Record<string, string> = { prime256v1: "P-256", secp384r1: "P-384", secp521r1: "P-521" };
@@ -115,6 +145,11 @@ function describeKey(cert: X509Certificate): string {
     default:
       return key.asymmetricKeyType?.toUpperCase() ?? "Unknown";
   }
+}
+
+// The domain names in the SAN, without IP addresses or other entries.
+function dnsNames(cert: X509Certificate): string[] {
+  return altNames(cert).filter((name) => !name.includes(":"));
 }
 
 // "DNS:a.example, DNS:b.example, IP Address:1.2.3.4" -> ["a.example", "b.example", "IP Address:1.2.3.4"]

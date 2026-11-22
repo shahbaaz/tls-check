@@ -38,6 +38,8 @@ https://badssl.com/ (Certificate issues urls)
   - (Later) A site has HTTPS but plain HTTP doesn't redirect to it: a warning, not a failure.
 - **Expiry:** fails when the certificate has expired or isn't valid yet. Under 14 days left is a **warning**, not a failure: certificates are getting shorter-lived and renew with about a third of their life left, so 14 days means renewal is overdue.
 - **Wrong host:** matched the way browsers do: only subject alternative names count (not the Common Name), and a wildcard covers one whole label.
+- **Domain names (SAN):** a certificate whose subject alternative names list no domain names fails: browsers stopped falling back to the Common Name in 2017. IP-address entries don't count. Wrong host is then skipped rather than counting the same problem twice.
+- **No Common Name / no Subject:** not a problem today: browsers use only the SAN, and CAs are dropping the Common Name. Shown as a pass with a note, never a failure.
 - **Self-signed:** the leaf certificate is signed by its own key. Both chain checks are skipped for a self-signed certificate rather than counting the same problem twice.
 - **Chain path:** built by the server itself from the leaf up, not taken from Node's validation error (which reports only one problem). At each step a root in the trust store wins; otherwise the issuer must be a certificate the server sent that is a CA and whose key signed the certificate below it.
 - **Incomplete chain:** the server doesn't send the intermediate certificate(s). Some browsers fetch the missing piece themselves, so the site "works in Chrome" but fails in other clients. We don't fetch it (the URL comes from the certificate, so fetching it is an SSRF risk), so untrusted root is skipped for an incomplete chain.
@@ -76,7 +78,7 @@ https://badssl.com/ (Certificate issues urls)
 
 - `verdict`: `secure` | `not_secure` | `unknown`. Any `fail` gives `not_secure`; otherwise any `skip` gives `unknown`; otherwise `secure`. Warnings don't change the verdict.
 - `status`: `pass` | `warn` | `fail` | `skip` (skip = couldn't check)
-- Connection checks come first: `dns`, `port_443`, `tls_handshake`. Then the certificate checks: `expired`, `wrong_host`, `self_signed`. Then the chain checks: `incomplete_chain`, `untrusted_root`. When a connection check fails, every later check is `skip`.
+- Connection checks come first: `dns`, `port_443`, `tls_handshake`. Then the certificate checks: `expired`, `wrong_host`, `self_signed`, `no_alt_names`, `no_subject`, `no_common_name`. Then the chain checks: `incomplete_chain`, `untrusted_root`. When a connection check fails, every later check is `skip`.
 - `certificate` describes the leaf: `subject`, `issuer`, `validFrom`, `validTo`, `altNames`, `publicKey`, `signatureAlgorithm`, `serialNumber`, `fingerprint256` and `chain`: the certificates above the leaf up to the root, each with `subject`, `issuer`, `validFrom`, `validTo`, `fingerprint256` and `source` (`server`, or `trust_store` for a trusted root, which Node adds even when the server didn't send it). It is `null` when no certificate was collected (DNS, port 443 or the TLS handshake failed).
 - Invalid input, or a domain that resolves to a private or internal address, returns `400` with `{ "error": "..." }`.
 - Nginx rate-limits `/api/` per client IP; over the limit returns `429`.
@@ -106,5 +108,8 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 2. [x] **Connection checks:** domain not found, nothing on port 443, not speaking TLS.
 3. [x] **Certificate details plus easy checks:** expired (warning under 14 days left), wrong host, self-signed. The page shows the results as a list.
 4. [x] **Chain checks:** untrusted root, incomplete chain.
-5. [ ] **Later:** revoked, no Common Name, no Subject. Decide whether revocation's "couldn't check" should make the verdict `unknown`. Also later: expired intermediate certificates.
+5. [ ] **Name and revocation checks:**
+   - [ ] **Part 1, name checks:** no domain names in the SAN (fails), no Common Name and no Subject (pass with a note).
+   - [ ] **Part 2, revocation:** revoked. Decide whether revocation's "couldn't check" should make the verdict `unknown`.
+   - Also later: expired intermediate certificates.
 6. [ ] **GitHub Actions:** CI first, then CD.
