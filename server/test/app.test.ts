@@ -182,3 +182,17 @@ test("POST /api/check reports a self-signed certificate as not secure", async (t
   assert.deepEqual(results.slice(-2), ["incomplete_chain:skip", "untrusted_root:skip"]);
   assert.equal(body.verdict, "not_secure");
 });
+
+test("POST /api/check reports a certificate with no domain names as not secure", async (t) => {
+  const body = await checkFixture(t, "no-san-key.pem", ["no-san-cert.pem"]);
+  const results = statuses(body);
+  assert.ok(results.includes("wrong_host:skip"));
+  assert.ok(results.includes("no_alt_names:fail"));
+  assert.equal(body.verdict, "not_secure");
+});
+
+test("POST /api/check accepts a certificate with an empty Subject", async (t) => {
+  const body = await checkFixture(t, "no-subject-key.pem", ["no-subject-cert.pem"]);
+  assert.equal(body.verdict, "secure");
+  assert.equal(body.certificate?.subject, "");
+});

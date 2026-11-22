@@ -23,6 +23,9 @@ const checkLabels: Record<string, string> = {
   expired: "Expiry date",
   wrong_host: "Domain name match",
   self_signed: "Certificate issuer",
+  no_alt_names: "Domain names listed",
+  no_subject: "Subject",
+  no_common_name: "Common Name",
   incomplete_chain: "Intermediate certificates",
   untrusted_root: "Trusted root",
 };
