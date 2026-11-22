@@ -9,6 +9,9 @@
 #   signed-by-leaf-cert.pem      signed with leaf-key.pem: its issuer isn't a CA
 #   no-san-cert.pem, -key        subject O=TLS Check Test (no CN), SAN with an IP address only
 #   no-subject-cert.pem, -key    empty subject, SAN test.example
+#   crl-leaf-cert.pem, -key      test.example with a CRL URL, signed by the root, not revoked
+#   revoked-leaf-cert.pem, -key  the same, but listed as revoked in root.crl
+#   root.crl                     the root's CRL (DER), listing revoked-leaf-cert.pem
 #
 # (test-cert.pem is a separate self-signed certificate for test.example.)
 set -eu
@@ -57,5 +60,30 @@ sign no-subject.csr ca-cert.pem ca-key.pem no-subject-cert.pem \
   "subjectAltName = critical, DNS:test.example
 basicConstraints = CA:FALSE"
 
+for name in crl-leaf revoked-leaf; do
+  openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+    -subj "/CN=test.example" -keyout $name-key.pem -out $name.csr
+  sign $name.csr ca-cert.pem ca-key.pem $name-cert.pem \
+    "subjectAltName = DNS:test.example
+basicConstraints = CA:FALSE
+crlDistributionPoints = URI:http://crl.test.example/root.crl"
+done
+
+# A CRL from the root listing revoked-leaf-cert.pem, made with a throwaway "openssl ca" setup.
+cat > ca.cnf <<'CNF'
+[ca]
+default_ca = test
+[test]
+database = index.txt
+crlnumber = crlnumber
+default_md = sha256
+default_crl_days = 36500
+CNF
+: > index.txt
+echo 01 > crlnumber
+openssl ca -config ca.cnf -keyfile ca-key.pem -cert ca-cert.pem -revoke revoked-leaf-cert.pem -crl_reason keyCompromise
+openssl ca -config ca.cnf -keyfile ca-key.pem -cert ca-cert.pem -gencrl -out root-crl.pem
+openssl crl -in root-crl.pem -outform DER -out root.crl
+
 # The CA keys aren't needed by the tests; rerun this script to make new certificates.
-rm ./*.csr ca-key.pem intermediate-key.pem signed-by-leaf-key.pem
+rm ./*.csr ca.cnf index.txt* crlnumber* root-crl.pem ca-key.pem intermediate-key.pem signed-by-leaf-key.pem
