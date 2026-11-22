@@ -1,6 +1,12 @@
 :root {
   color-scheme: light dark;
   font-family: system-ui, sans-serif;
+  /* light-dark() picks the first color in light mode and the second in dark mode. */
+  --pass: light-dark(#1a7f37, #3fb950);
+  --warn: light-dark(#9a6700, #d29922);
+  --fail: light-dark(#cf222e, #f85149);
+  --muted: #888;
+  --skip: var(--muted);
 }
 
 main {
@@ -24,7 +30,7 @@ label {
 .input-group {
   display: flex;
   flex: 1;
-  border: 1px solid #888;
+  border: 1px solid var(--muted);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -36,7 +42,7 @@ label {
 
 .prefix {
   padding: 0.5rem 0.25rem 0.5rem 0.6rem;
-  color: #888;
+  color: var(--muted);
 }
 
 input {
@@ -62,7 +68,7 @@ button {
   align-items: center;
   gap: 0.6rem;
   margin-top: 2rem;
-  color: #888;
+  color: var(--muted);
 }
 
 .spinner {
@@ -87,6 +93,11 @@ button {
   }
 }
 
+.error {
+  margin-top: 2rem;
+  color: var(--fail);
+}
+
 .results {
   margin-top: 2rem;
 }
@@ -106,15 +117,7 @@ button {
 
 .note {
   margin: 0;
-  color: #888;
-}
-
-/* light-dark() picks the first color in light mode and the second in dark mode. */
-:root {
-  --pass: light-dark(#1a7f37, #3fb950);
-  --warn: light-dark(#9a6700, #d29922);
-  --fail: light-dark(#cf222e, #f85149);
-  --skip: #888;
+  color: var(--muted);
 }
 
 .checks {
@@ -166,35 +169,35 @@ button {
 
 .check-message {
   overflow-wrap: anywhere;
-  color: #888;
+  color: var(--muted);
 }
 
-.certificate h3 {
+.details h3 {
   margin-bottom: 0.5rem;
 }
 
-.certificate dl {
+.details dl {
   margin: 0;
 }
 
-.certificate dl > div {
+.details dl > div {
   display: grid;
   grid-template-columns: 11rem 1fr;
   gap: 0.75rem;
   padding: 0.35rem 0;
 }
 
-.certificate dt {
-  color: #888;
+.details dt {
+  color: var(--muted);
 }
 
-.certificate dd {
+.details dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
 /* Identifiers for debugging, not findings: shown smaller. */
-.certificate .minor {
+.details .minor {
   font-size: 0.85rem;
 }
 
@@ -216,11 +219,11 @@ button {
 
 .chain-detail {
   font-size: 0.85rem;
-  color: #888;
+  color: var(--muted);
 }
 
 @media (max-width: 30rem) {
-  .certificate dl > div {
+  .details dl > div {
     grid-template-columns: 1fr;
     gap: 0;
   }

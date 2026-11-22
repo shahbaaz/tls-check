@@ -46,8 +46,9 @@ export function App() {
 
   async function onSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    setRequest({ kind: "loading", domain: domain.trim() });
-    setRequest(await runCheck(domain));
+    const host = domain.trim();
+    setRequest({ kind: "loading", domain: host });
+    setRequest(await runCheck(host));
   }
 
   const loading = request.kind === "loading";
@@ -82,18 +83,22 @@ export function App() {
           Checking {request.domain}… this can take up to 10 seconds.
         </p>
       )}
-      {request.kind === "error" && <p role="alert">{request.message}</p>}
+      {request.kind === "error" && (
+        <p className="error" role="alert">
+          {request.message}
+        </p>
+      )}
       {request.kind === "done" && <Results result={request.result} />}
     </main>
   );
 }
 
-async function runCheck(domain: string): Promise<RequestState> {
+async function runCheck(host: string): Promise<RequestState> {
   try {
     const res = await fetch("/api/check", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ host: domain }),
+      body: JSON.stringify({ host }),
     });
     if (res.ok) return { kind: "done", result: (await res.json()) as CheckResponse };
     // 429 is sent by Nginx's per-IP rate limit
@@ -114,8 +119,12 @@ function Results({ result }: { result: CheckResponse }) {
           <CheckRow key={check.id} check={check} />
         ))}
       </ul>
-      {result.certificate && <CertificateDetails certificate={result.certificate} />}
-      {result.certificate && <Chain certificate={result.certificate} />}
+      {result.certificate && (
+        <>
+          <CertificateDetails certificate={result.certificate} />
+          <Chain certificate={result.certificate} />
+        </>
+      )}
     </section>
   );
 }
@@ -124,13 +133,13 @@ function Verdict({ result }: { result: CheckResponse }) {
   const count = (status: CheckStatus) => result.checks.filter((c) => c.status === status).length;
   const problems = count("fail");
   const warnings = count("warn");
-  const warningText = warnings ? `${warnings} warning${warnings === 1 ? "" : "s"}` : "";
+  const warningText = warnings ? plural(warnings, "warning") : "";
 
   if (result.verdict === "not_secure") {
     const extra = warningText ? `, ${warningText}` : "";
     return (
       <h2 className="verdict verdict-not_secure">
-        Not secure: {problems} problem{problems === 1 ? "" : "s"} found{extra}
+        Not secure: {plural(problems, "problem")} found{extra}
       </h2>
     );
   }
@@ -174,7 +183,7 @@ function CertificateDetails({ certificate }: { certificate: CertificateSummary }
     ["SHA-256 fingerprint", certificate.fingerprint256, "minor"],
   ];
   return (
-    <section className="certificate">
+    <section className="details">
       <h3>Certificate</h3>
       <dl>
         {rows.map(([term, value, className]) => (
@@ -192,7 +201,7 @@ function CertificateDetails({ certificate }: { certificate: CertificateSummary }
 // the server sent and which root it ends at.
 function Chain({ certificate }: { certificate: CertificateSummary }) {
   return (
-    <section className="certificate">
+    <section className="details">
       <h3>Chain</h3>
       <ol className="chain">
         <li>
@@ -224,6 +233,11 @@ function ChainRow({ cert }: { cert: ChainCertificate }) {
 // An empty Subject falls back to the given name (e.g. the first domain name) or "No subject".
 function name(subject: string, fallback?: string): string {
   return /(?:^|, )CN=([^,]+)/.exec(subject)?.[1] ?? (subject || fallback || "No subject");
+}
+
+// "1 warning", "2 warnings"
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
 function formatDate(iso: string): string {
