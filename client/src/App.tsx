@@ -28,6 +28,7 @@ const checkLabels: Record<string, string> = {
   no_common_name: "Common Name",
   incomplete_chain: "Intermediate certificates",
   untrusted_root: "Trusted root",
+  revoked: "Revocation",
 };
 
 const statusLabels: Record<CheckStatus, string> = {

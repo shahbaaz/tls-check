@@ -18,8 +18,7 @@ const BLOCKED_RANGES: [string, number, "ipv4" | "ipv6"][] = [
   ["203.0.113.0", 24, "ipv4"], // documentation
   ["224.0.0.0", 4, "ipv4"], // multicast
   ["240.0.0.0", 4, "ipv4"], // reserved, broadcast
-  ["::", 128, "ipv6"], // unspecified
-  ["::1", 128, "ipv6"], // loopback
+  ["::", 96, "ipv6"], // unspecified, loopback, IPv4-compatible (deprecated, can wrap a private IPv4 address)
   ["64:ff9b::", 96, "ipv6"], // NAT64, can wrap a private IPv4 address
   ["100::", 64, "ipv6"], // discard
   ["2001::", 32, "ipv6"], // Teredo

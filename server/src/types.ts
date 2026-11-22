@@ -7,7 +7,7 @@ export type CheckStatus = "pass" | "warn" | "fail" | "skip";
 
 export interface CheckResult {
   // "dns", "port_443", "tls_handshake", "expired", "wrong_host", "self_signed",
-  // "no_alt_names", "no_subject", "no_common_name", "incomplete_chain", "untrusted_root"
+  // "no_alt_names", "no_subject", "no_common_name", "incomplete_chain", "untrusted_root", "revoked"
   id: string;
   status: CheckStatus;
   message?: string;

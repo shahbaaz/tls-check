@@ -12,6 +12,8 @@ const blocked = [
   "0.0.0.0",
   "::1",
   "::ffff:127.0.0.1",
+  "::127.0.0.1", // IPv4-compatible IPv6 (deprecated)
+  "::10.0.0.1",
   "fd00::1",
   "fe80::1",
 ];
