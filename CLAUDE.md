@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**`SPEC.md` is the source of truth** for requirements and decisions: product behavior, the API, the tech stack, CI/CD and the milestones. Milestones 1–2 are live; see SPEC.md for what's next.
+**`SPEC.md` is the source of truth** for requirements and decisions: product behavior, the API, the tech stack, CI/CD and the milestones. Milestones 1–3 are live; see SPEC.md for what's next.
 
 This is the owner's personal learning project. They want to talk through decisions before any files are created or changed, so wait for an explicit go-ahead before building.
 
