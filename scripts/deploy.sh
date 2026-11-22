@@ -13,8 +13,9 @@
 main() {
   set -euo pipefail
   export PATH=/usr/local/bin:/usr/bin:/bin
-  export LC_ALL=C                        # byte-exact hash check, whatever the client sends
-  export NPM_CONFIG_USERCONFIG=/dev/null # ignore ~/.npmrc
+  export LC_ALL=C                         # byte-exact hash check, whatever the client sends
+  export NPM_CONFIG_USERCONFIG=/dev/null  # ignore ~/.npmrc
+  export NPM_CONFIG_UPDATE_NOTIFIER=false # no "new npm version" notice in deploy logs
   umask 022 # files stay readable by tlscheck (the app) and www-data (Nginx)
 
   local app_dir=/srv/tls-check
