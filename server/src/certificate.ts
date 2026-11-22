@@ -38,9 +38,25 @@ function checkHost(cert: X509Certificate, host: string): CheckResult {
   const matched = cert.checkHost(host, { subject: "never", partialWildcards: false });
   if (matched !== undefined) return pass("wrong_host", matched === host ? `Covers ${host}` : `Covers ${host} (via ${matched})`);
   const names = altNames(cert);
-  if (names.length === 0) return fail("wrong_host", `Not valid for ${host}: the certificate lists no domain names`);
-  const shown = names.slice(0, 5).join(", ") + (names.length > 5 ? ` and ${names.length - 5} more` : "");
-  return fail("wrong_host", `Not valid for ${host}: it covers ${shown}`);
+  if (names.length === 0) return fail("wrong_host", "The certificate doesn't list any domain names");
+  const message = `The certificate is for ${listNames(names)}, not ${host}.`;
+  // A wildcard that nearly matches (*.example.com for a.b.example.com) is easy to misread, so explain it.
+  const nearWildcard = names.find((name) => {
+    if (!name.startsWith("*.")) return false;
+    const base = name.slice(1); // ".example.com"
+    return host.endsWith(base) && host.slice(0, -base.length).includes(".");
+  });
+  if (!nearWildcard) return fail("wrong_host", message);
+  const example = `www${nearWildcard.slice(1)}`;
+  return fail("wrong_host", `${message} A wildcard (*) covers one level only, e.g. ${example}, not ${host}.`);
+}
+
+// "a", "a and b", "a, b and c"; long lists end with "and 3 more".
+function listNames(names: string[]): string {
+  const shown = names.slice(0, 5);
+  const rest = names.length - shown.length;
+  if (rest > 0) return `${shown.join(", ")} and ${rest} more`;
+  return shown.length === 1 ? shown[0]! : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}`;
 }
 
 function checkSelfSigned(cert: X509Certificate): CheckResult {
