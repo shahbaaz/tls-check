@@ -64,6 +64,9 @@ test("POST /api/check cleans the host and reports connection checks", async () =
       { id: "expired", status: "skip", message: "Skipped: domain not found" },
       { id: "wrong_host", status: "skip", message: "Skipped: domain not found" },
       { id: "self_signed", status: "skip", message: "Skipped: domain not found" },
+      { id: "no_alt_names", status: "skip", message: "Skipped: domain not found" },
+      { id: "no_subject", status: "skip", message: "Skipped: domain not found" },
+      { id: "no_common_name", status: "skip", message: "Skipped: domain not found" },
       { id: "incomplete_chain", status: "skip", message: "Skipped: domain not found" },
       { id: "untrusted_root", status: "skip", message: "Skipped: domain not found" },
     ],
@@ -138,6 +141,9 @@ test("POST /api/check runs every check against a TLS server", async (t) => {
     "expired:pass",
     "wrong_host:pass",
     "self_signed:pass",
+    "no_alt_names:pass",
+    "no_subject:pass",
+    "no_common_name:pass",
     "incomplete_chain:pass",
     "untrusted_root:pass",
   ]);
@@ -171,6 +177,8 @@ test("POST /api/check reports a missing intermediate as not secure", async (t) =
 
 test("POST /api/check reports a self-signed certificate as not secure", async (t) => {
   const body = await checkFixture(t, "test-key.pem", ["test-cert.pem"]);
-  assert.deepEqual(statuses(body).slice(-3), ["self_signed:fail", "incomplete_chain:skip", "untrusted_root:skip"]);
+  const results = statuses(body);
+  assert.ok(results.includes("self_signed:fail"));
+  assert.deepEqual(results.slice(-2), ["incomplete_chain:skip", "untrusted_root:skip"]);
   assert.equal(body.verdict, "not_secure");
 });
