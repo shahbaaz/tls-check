@@ -69,6 +69,7 @@ test("POST /api/check cleans the host and reports connection checks", async () =
       { id: "no_common_name", status: "skip", message: "Skipped: domain not found" },
       { id: "incomplete_chain", status: "skip", message: "Skipped: domain not found" },
       { id: "untrusted_root", status: "skip", message: "Skipped: domain not found" },
+      { id: "revoked", status: "skip", message: "Skipped: domain not found" },
     ],
     certificate: null,
   });
@@ -98,10 +99,14 @@ test("POST /api/check with malformed JSON returns a JSON 400", async () => {
   assert.deepEqual(await res.json(), { error: "Invalid request" });
 });
 
+const fixtures = new URL("./fixtures/", import.meta.url);
+const noNetwork = async (): Promise<Buffer> => {
+  throw new Error("no network in tests");
+};
+
 // Starts a local TLS server serving the given fixture certificate(s) as test.example, and an app
-// that trusts the test CA, then runs a check against it.
-async function checkFixture(t: TestContext, keyFile: string, certFiles: string[]) {
-  const fixtures = new URL("./fixtures/", import.meta.url);
+// that trusts the test CA, then runs a check against it. fetchCrl stands in for the CRL download.
+async function checkFixture(t: TestContext, keyFile: string, certFiles: string[], fetchCrl = noNetwork) {
   const pem = (file: string) => readFileSync(new URL(file, fixtures), "utf8");
   const tlsServer = tls.createServer({ key: pem(keyFile), cert: certFiles.map(pem).join("") });
   tlsServer.listen(0, "127.0.0.1");
@@ -112,7 +117,7 @@ async function checkFixture(t: TestContext, keyFile: string, certFiles: string[]
     port: (tlsServer.address() as AddressInfo).port,
     timeoutMs: 300,
   };
-  const app = createApp(options, trustStore([pem("ca-cert.pem")])).listen(0, "127.0.0.1");
+  const app = createApp(options, trustStore([pem("ca-cert.pem")]), { fetchCrl }).listen(0, "127.0.0.1");
   await once(app, "listening");
   t.after(() => {
     app.closeAllConnections();
@@ -146,6 +151,7 @@ test("POST /api/check runs every check against a TLS server", async (t) => {
     "no_common_name:pass",
     "incomplete_chain:pass",
     "untrusted_root:pass",
+    "revoked:skip", // this certificate lists no CRL; a skipped revocation check leaves the verdict alone
   ]);
   assert.equal(body.verdict, "secure");
   assert.equal(body.certificate?.subject, "CN=test.example");
@@ -170,7 +176,7 @@ test("POST /api/check collects the intermediate the server sends", async (t) => 
 
 test("POST /api/check reports a missing intermediate as not secure", async (t) => {
   const body = await checkFixture(t, "chain-leaf-key.pem", ["chain-leaf-cert.pem"]);
-  assert.deepEqual(statuses(body).slice(-2), ["incomplete_chain:fail", "untrusted_root:skip"]);
+  assert.deepEqual(statuses(body).slice(-3), ["incomplete_chain:fail", "untrusted_root:skip", "revoked:skip"]);
   assert.equal(body.verdict, "not_secure");
   assert.deepEqual(body.certificate?.chain, []);
 });
@@ -179,7 +185,7 @@ test("POST /api/check reports a self-signed certificate as not secure", async (t
   const body = await checkFixture(t, "test-key.pem", ["test-cert.pem"]);
   const results = statuses(body);
   assert.ok(results.includes("self_signed:fail"));
-  assert.deepEqual(results.slice(-2), ["incomplete_chain:skip", "untrusted_root:skip"]);
+  assert.deepEqual(results.slice(-3), ["incomplete_chain:skip", "untrusted_root:skip", "revoked:skip"]);
   assert.equal(body.verdict, "not_secure");
 });
 
@@ -195,4 +201,24 @@ test("POST /api/check accepts a certificate with an empty Subject", async (t) =>
   const body = await checkFixture(t, "no-subject-key.pem", ["no-subject-cert.pem"]);
   assert.equal(body.verdict, "secure");
   assert.equal(body.certificate?.subject, "");
+});
+
+const serveRootCrl = async () => readFileSync(new URL("root.crl", fixtures));
+
+test("POST /api/check passes a certificate that isn't on its CRL", async (t) => {
+  const body = await checkFixture(t, "crl-leaf-key.pem", ["crl-leaf-cert.pem"], serveRootCrl);
+  assert.equal(statuses(body).at(-1), "revoked:pass");
+  assert.equal(body.verdict, "secure");
+});
+
+test("POST /api/check reports a revoked certificate as not secure", async (t) => {
+  const body = await checkFixture(t, "revoked-leaf-key.pem", ["revoked-leaf-cert.pem"], serveRootCrl);
+  assert.equal(statuses(body).at(-1), "revoked:fail");
+  assert.equal(body.verdict, "not_secure");
+});
+
+test("POST /api/check stays secure when the CRL can't be downloaded", async (t) => {
+  const body = await checkFixture(t, "crl-leaf-key.pem", ["crl-leaf-cert.pem"]);
+  assert.equal(statuses(body).at(-1), "revoked:skip");
+  assert.equal(body.verdict, "secure");
 });
