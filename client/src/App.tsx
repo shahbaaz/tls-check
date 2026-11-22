@@ -162,7 +162,7 @@ function CheckRow({ check }: { check: CheckResult }) {
 
 function CertificateDetails({ certificate }: { certificate: CertificateSummary }) {
   const rows: [string, string, string?][] = [
-    ["Subject", certificate.subject],
+    ["Subject", certificate.subject || "None"],
     ["Issuer", certificate.issuer],
     ["Valid from", formatDate(certificate.validFrom)],
     ["Valid to", formatDate(certificate.validTo)],
@@ -195,7 +195,7 @@ function Chain({ certificate }: { certificate: CertificateSummary }) {
       <h3>Chain</h3>
       <ol className="chain">
         <li>
-          <span className="chain-name">{name(certificate.subject)}</span>
+          <span className="chain-name">{name(certificate.subject, certificate.altNames[0])}</span>
           <span className="chain-detail">This site's certificate</span>
         </li>
         {certificate.chain.map((cert) => (
@@ -220,8 +220,9 @@ function ChainRow({ cert }: { cert: ChainCertificate }) {
 }
 
 // The CN of a one-line name ("C=US, O=Let's Encrypt, CN=YR1" -> "YR1"), or the whole name.
-function name(subject: string): string {
-  return /(?:^|, )CN=([^,]+)/.exec(subject)?.[1] ?? subject;
+// An empty Subject falls back to the given name (e.g. the first domain name) or "No subject".
+function name(subject: string, fallback?: string): string {
+  return /(?:^|, )CN=([^,]+)/.exec(subject)?.[1] ?? (subject || fallback || "No subject");
 }
 
 function formatDate(iso: string): string {
