@@ -65,13 +65,22 @@ test("wrong_host: a wildcard covers one label only", () => {
 test("wrong_host: lists the names the certificate does cover", () => {
   const result = check("wrong_host", leaf, "other.example");
   assert.equal(result.status, "fail");
-  assert.equal(result.message, "Not valid for other.example: it covers test.example, *.wild.example");
+  assert.equal(result.message, "The certificate is for test.example and *.wild.example, not other.example.");
+});
+
+test("wrong_host: explains a wildcard that covers one level too few", () => {
+  const result = check("wrong_host", leaf, "a.b.wild.example");
+  assert.equal(
+    result.message,
+    "The certificate is for test.example and *.wild.example, not a.b.wild.example. " +
+      "A wildcard (*) covers one level only, e.g. www.wild.example, not a.b.wild.example.",
+  );
 });
 
 test("wrong_host: the Common Name alone doesn't count, as in browsers", () => {
   const result = check("wrong_host", selfSigned, "test.example");
   assert.equal(result.status, "fail");
-  assert.equal(result.message, "Not valid for test.example: the certificate lists no domain names");
+  assert.equal(result.message, "The certificate doesn't list any domain names");
 });
 
 test("self_signed: fails for a self-signed certificate", () => {
