@@ -44,7 +44,11 @@ https://badssl.com/ (Certificate issues urls)
 - **Chain path:** built by the server itself from the leaf up, not taken from Node's validation error (which reports only one problem). At each step a root in the trust store wins; otherwise the issuer must be a certificate the server sent that is a CA and whose key signed the certificate below it.
 - **Incomplete chain:** the server doesn't send the intermediate certificate(s). Some browsers fetch the missing piece themselves, so the site "works in Chrome" but fails in other clients. We don't fetch it (the URL comes from the certificate, so fetching it is an SSRF risk), so untrusted root is skipped for an incomplete chain.
 - **Untrusted root:** the chain ends at a self-signed root that isn't in the trust store.
-- **Revocation:** checked with OCSP/CRL, built last. If the CA's server can't be reached, the result is "couldn't check", never a pass.
+- **Revocation:** checked with the CRL (the CA's list of revoked serial numbers) only; OCSP is dropped (Let's Encrypt has shut it down and browsers barely use it). The leaf fails if its serial number is on the list.
+  - "Couldn't check" (skip) when: the certificate has no CRL URL (e.g. OCSP-only CAs), the chain has no issuer to verify the list with, the download fails, the signature doesn't verify, or the list is past its `nextUpdate`. Never a pass.
+  - Fetched safely, since the URL comes from the certificate: `http:` only, resolve the name and block private addresses, connect to that IP, 5 s timeout, 1 MB cap, no redirects. On any failure the connection is destroyed.
+  - The DER is parsed by hand and the list's signature verified with the issuer's key from the chain path (an unverified list over plain HTTP could hide a revocation).
+  - Cached in memory: only the revoked serials, keyed by URL, until `nextUpdate` (at most 24 h). At most 50 lists; the oldest is dropped first. Expired entries are dropped when looked up; failures aren't cached.
 - **Trust store:** use Node's bundled Mozilla root list (`tls.rootCertificates`). It's the default and the same on the laptop and the droplet. "Untrusted root" means the chain doesn't end at a root on this list.
 
 ### How a check works (server side)
@@ -76,9 +80,9 @@ https://badssl.com/ (Certificate issues urls)
 }
 ```
 
-- `verdict`: `secure` | `not_secure` | `unknown`. Any `fail` gives `not_secure`; otherwise any `skip` gives `unknown`; otherwise `secure`. Warnings don't change the verdict.
+- `verdict`: `secure` | `not_secure` | `unknown`. Any `fail` gives `not_secure`; otherwise any `skip` gives `unknown`; otherwise `secure`. Warnings, and a skipped `revoked` check, don't change the verdict (browsers also let the site through when they can't check).
 - `status`: `pass` | `warn` | `fail` | `skip` (skip = couldn't check)
-- Connection checks come first: `dns`, `port_443`, `tls_handshake`. Then the certificate checks: `expired`, `wrong_host`, `self_signed`, `no_alt_names`, `no_subject`, `no_common_name`. Then the chain checks: `incomplete_chain`, `untrusted_root`. When a connection check fails, every later check is `skip`.
+- Connection checks come first: `dns`, `port_443`, `tls_handshake`. Then the certificate checks: `expired`, `wrong_host`, `self_signed`, `no_alt_names`, `no_subject`, `no_common_name`. Then the chain checks: `incomplete_chain`, `untrusted_root`. Then `revoked`. When a connection check fails, every later check is `skip`.
 - `certificate` describes the leaf: `subject`, `issuer`, `validFrom`, `validTo`, `altNames`, `publicKey`, `signatureAlgorithm`, `serialNumber`, `fingerprint256` and `chain`: the certificates above the leaf up to the root, each with `subject`, `issuer`, `validFrom`, `validTo`, `fingerprint256` and `source` (`server`, or `trust_store` for a trusted root, which Node adds even when the server didn't send it). It is `null` when no certificate was collected (DNS, port 443 or the TLS handshake failed).
 - Invalid input, or a domain that resolves to a private or internal address, returns `400` with `{ "error": "..." }`.
 - Nginx rate-limits `/api/` per client IP; over the limit returns `429`.
@@ -110,6 +114,6 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 4. [x] **Chain checks:** untrusted root, incomplete chain.
 5. [ ] **Name and revocation checks:**
    - [x] **Part 1, name checks:** no domain names in the SAN (fails), no Common Name and no Subject (pass with a note).
-   - [ ] **Part 2, revocation:** revoked. Decide whether revocation's "couldn't check" should make the verdict `unknown`.
+   - [ ] **Part 2, revocation:** revoked, from the CRL only (no OCSP). "Couldn't check" doesn't change the verdict.
    - Also later: expired intermediate certificates.
 6. [ ] **GitHub Actions:** CI first, then CD.
