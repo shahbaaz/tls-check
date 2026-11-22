@@ -198,6 +198,27 @@ button {
   font-size: 0.85rem;
 }
 
+/* Each certificate is issued by the one below it, so the list reads from the site up to the root. */
+.chain {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.chain li {
+  padding: 0.35rem 0;
+}
+
+.chain-name,
+.chain-detail {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.chain-detail {
+  font-size: 0.85rem;
+  color: #888;
+}
+
 @media (max-width: 30rem) {
   .certificate dl > div {
     grid-template-columns: 1fr;

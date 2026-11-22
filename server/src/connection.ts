@@ -1,4 +1,4 @@
-import type { X509Certificate } from "node:crypto";
+import { X509Certificate } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 import tls from "node:tls";
@@ -22,7 +22,8 @@ export const defaultConnectionOptions: ConnectionOptions = {
 
 export type ConnectionResult =
   | { kind: "blocked" } // resolves to a private or internal address: refuse to connect
-  | { kind: "connected"; checks: CheckResult[]; certificate: X509Certificate }
+  // chain: the other certificates collected with the leaf, in the order Node links them
+  | { kind: "connected"; checks: CheckResult[]; certificate: X509Certificate; chain: X509Certificate[] }
   // reason says why no certificate was collected, for the certificate checks' "skip" rows
   | { kind: "failed"; checks: CheckResult[]; reason: string };
 
@@ -62,11 +63,12 @@ export async function checkConnection(
   try {
     const tlsSocket = await handshake(socket, host, options.timeoutMs);
     const protocol = tlsSocket.getProtocol();
-    const certificate = tlsSocket.getPeerX509Certificate();
+    const certificates = peerCertificates(tlsSocket);
     tlsSocket.destroy();
     const tlsCheck = pass("tls_handshake", `Handshake completed${protocol ? ` (${protocol})` : ""}`);
+    const [certificate, ...chain] = certificates;
     if (!certificate) return failed("no certificate received", dns, port, tlsCheck);
-    return { kind: "connected", checks: [dns, port, tlsCheck], certificate };
+    return { kind: "connected", checks: [dns, port, tlsCheck], certificate, chain };
   } catch (err) {
     return failed("TLS handshake failed", dns, port, fail("tls_handshake", `TLS handshake failed: ${errorText(err)}`));
   }
@@ -114,6 +116,20 @@ function handshake(socket: net.Socket, servername: string, timeoutMs: number): P
       resolve(tlsSocket);
     });
   });
+}
+
+// The leaf first, then the certificates above it. Node only gives the chain as linked objects,
+// so follow issuerCertificate; a root links to itself. Node also adds the root from its own
+// trust store when the server didn't send it, so this can't tell which ones the server sent.
+// (Don't call getPeerX509Certificate() first: in Node 26 that makes this return an empty object.)
+function peerCertificates(tlsSocket: tls.TLSSocket): X509Certificate[] {
+  const certificates: X509Certificate[] = [];
+  let current: tls.DetailedPeerCertificate | undefined = tlsSocket.getPeerCertificate(true);
+  while (current?.raw && certificates.length < 10) {
+    certificates.push(new X509Certificate(current.raw));
+    current = current.issuerCertificate === current ? undefined : current.issuerCertificate;
+  }
+  return certificates;
 }
 
 class ConnectTimeout extends Error {}

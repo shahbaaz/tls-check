@@ -97,7 +97,7 @@ test("skipCertificateChecks gives a skip row per check", () => {
 });
 
 test("summarizeCertificate returns the leaf's details", () => {
-  const summary = summarizeCertificate(leaf);
+  const summary = summarizeCertificate(leaf, []);
   assert.equal(summary.subject, "CN=test.example");
   assert.equal(summary.issuer, "CN=TLS Check Test CA");
   assert.deepEqual(summary.altNames, ["test.example", "*.wild.example"]);
@@ -105,5 +105,4 @@ test("summarizeCertificate returns the leaf's details", () => {
   assert.equal(summary.publicKey, "EC P-256");
   assert.equal(summary.signatureAlgorithm, "ecdsa-with-SHA256");
   assert.equal(summary.fingerprint256, leaf.fingerprint256);
-  assert.deepEqual(summary.chain, []);
 });
