@@ -7,6 +7,8 @@
 #   intermediate-cert.pem        an intermediate CA, signed by the root
 #   chain-leaf-cert.pem, -key    test.example, signed by the intermediate
 #   signed-by-leaf-cert.pem      signed with leaf-key.pem: its issuer isn't a CA
+#   no-san-cert.pem, -key        subject O=TLS Check Test (no CN), SAN with an IP address only
+#   no-subject-cert.pem, -key    empty subject, SAN test.example
 #
 # (test-cert.pem is a separate self-signed certificate for test.example.)
 set -eu
@@ -41,6 +43,18 @@ openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
   -subj "/CN=other.example" -keyout signed-by-leaf-key.pem -out signed-by-leaf.csr
 sign signed-by-leaf.csr leaf-cert.pem leaf-key.pem signed-by-leaf-cert.pem \
   "subjectAltName = DNS:other.example
+basicConstraints = CA:FALSE"
+
+openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+  -subj "/O=TLS Check Test" -keyout no-san-key.pem -out no-san.csr
+sign no-san.csr ca-cert.pem ca-key.pem no-san-cert.pem \
+  "subjectAltName = IP:192.0.2.1
+basicConstraints = CA:FALSE"
+
+openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+  -subj "/" -keyout no-subject-key.pem -out no-subject.csr
+sign no-subject.csr ca-cert.pem ca-key.pem no-subject-cert.pem \
+  "subjectAltName = critical, DNS:test.example
 basicConstraints = CA:FALSE"
 
 # The CA keys aren't needed by the tests; rerun this script to make new certificates.
