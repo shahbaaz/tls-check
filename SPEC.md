@@ -109,7 +109,7 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 3. [x] **Certificate details plus easy checks:** expired (warning under 14 days left), wrong host, self-signed. The page shows the results as a list.
 4. [x] **Chain checks:** untrusted root, incomplete chain.
 5. [ ] **Name and revocation checks:**
-   - [ ] **Part 1, name checks:** no domain names in the SAN (fails), no Common Name and no Subject (pass with a note).
+   - [x] **Part 1, name checks:** no domain names in the SAN (fails), no Common Name and no Subject (pass with a note).
    - [ ] **Part 2, revocation:** revoked. Decide whether revocation's "couldn't check" should make the verdict `unknown`.
    - Also later: expired intermediate certificates.
 6. [ ] **GitHub Actions:** CI first, then CD.
