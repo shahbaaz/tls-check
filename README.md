@@ -1,12 +1,12 @@
-# tls.shahbaaz.dev
+# TLS Check
 
 Find out exactly what's wrong with a website's TLS certificate. Enter a domain and get every problem as a pass / fail list, with an overall verdict on top.
 
-**Status:** early development. The app runs end to end, but `POST /api/check` returns a stub reply. See the milestones in [SPEC.md](SPEC.md).
+**Status:** in development. Connection and basic certificate checks (expired, wrong host, self-signed) work; chain and revocation checks are next. See the milestones in [SPEC.md](SPEC.md).
 
 ## What it checks
 
-- Expired
+- Expired (a warning when under 14 days are left)
 - Wrong host
 - Self-signed
 - Untrusted root (the chain doesn't end at a root in Node's bundled Mozilla list)
@@ -60,12 +60,12 @@ The server looks up the domain first and refuses private and internal IP address
     { "id": "expired", "status": "fail", "message": "Expired 2015-04-12" },
     { "id": "wrong_host", "status": "pass" }
   ],
-  "certificate": { "subject": "...", "issuer": "...", "validTo": "...", "chain": [] }
+  "certificate": { "subject": "...", "issuer": "...", "validFrom": "...", "validTo": "...", "altNames": [], "publicKey": "...", "signatureAlgorithm": "...", "serialNumber": "...", "fingerprint256": "...", "chain": [] }
 }
 ```
 
 - `verdict`: `secure`, `not_secure` or `unknown`
-- `status`: `pass`, `fail` or `skip` (couldn't check)
+- `status`: `pass`, `warn`, `fail` or `skip` (couldn't check)
 - Invalid input returns `400` with `{ "error": "..." }`.
 
 `GET /api/health` returns `{ "ok": true }`.

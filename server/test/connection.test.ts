@@ -30,8 +30,8 @@ async function listen(server: net.Server): Promise<number> {
 }
 
 function statuses(result: Awaited<ReturnType<typeof checkConnection>>) {
-  assert.equal(result.kind, "checked");
-  return result.kind === "checked" ? result.checks.map((c) => `${c.id}:${c.status}`) : [];
+  assert.notEqual(result.kind, "blocked");
+  return result.kind !== "blocked" ? result.checks.map((c) => `${c.id}:${c.status}`) : [];
 }
 
 test("all three checks pass against a TLS server, and SNI is sent", async (t) => {
@@ -49,19 +49,20 @@ test("all three checks pass against a TLS server, and SNI is sent", async (t) =>
   const result = await checkConnection("test.example", options(await listen(server)));
   assert.deepEqual(statuses(result), ["dns:pass", "port_443:pass", "tls_handshake:pass"]);
   assert.equal(sni, "test.example");
+  assert.equal(result.kind === "connected" && result.certificate.subject, "CN=test.example");
 });
 
 test("DNS failure fails dns and skips the rest", async () => {
   const notFound = Object.assign(new Error("not found"), { code: "ENOTFOUND" });
   const result = await checkConnection("missing.example", options(1, { resolve: async () => Promise.reject(notFound) }));
   assert.deepEqual(statuses(result), ["dns:fail", "port_443:skip", "tls_handshake:skip"]);
-  assert.equal(result.kind === "checked" && result.checks[0]?.message, "Domain not found");
+  assert.equal(result.kind !== "blocked" && result.checks[0]?.message, "Domain not found");
 });
 
 test("a temporary DNS failure says so in every row", async () => {
   const again = Object.assign(new Error("try again"), { code: "EAI_AGAIN" });
   const result = await checkConnection("flaky.example", options(1, { resolve: async () => Promise.reject(again) }));
-  assert.deepEqual(result.kind === "checked" && result.checks.map((c) => c.message), [
+  assert.deepEqual(result.kind !== "blocked" && result.checks.map((c) => c.message), [
     "DNS lookup failed (EAI_AGAIN)",
     "Skipped: DNS lookup failed",
     "Skipped: DNS lookup failed",
@@ -88,7 +89,8 @@ test("a refused connection fails port_443", async () => {
   await once(server, "close");
   const result = await checkConnection("closed.example", options(port));
   assert.deepEqual(statuses(result), ["dns:pass", "port_443:fail", "tls_handshake:skip"]);
-  assert.equal(result.kind === "checked" && result.checks[1]?.message, "Connection refused on port 443");
+  assert.equal(result.kind !== "blocked" && result.checks[1]?.message, "Connection refused on port 443");
+  assert.equal(result.kind === "failed" && result.reason, "port 443 didn't answer");
 });
 
 test("a server that doesn't speak TLS fails tls_handshake", async (t) => {
@@ -96,6 +98,7 @@ test("a server that doesn't speak TLS fails tls_handshake", async (t) => {
   t.after(() => server.close());
   const result = await checkConnection("plain.example", options(await listen(server)));
   assert.deepEqual(statuses(result), ["dns:pass", "port_443:pass", "tls_handshake:fail"]);
+  assert.equal(result.kind === "failed" && result.reason, "TLS handshake failed");
 });
 
 test("a server that never answers the handshake times out", async (t) => {
@@ -107,5 +110,5 @@ test("a server that never answers the handshake times out", async (t) => {
   });
   const result = await checkConnection("silent.example", options(await listen(server)));
   assert.deepEqual(statuses(result), ["dns:pass", "port_443:pass", "tls_handshake:fail"]);
-  assert.match(result.kind === "checked" ? (result.checks[2]?.message ?? "") : "", /no reply within/);
+  assert.match(result.kind !== "blocked" ? (result.checks[2]?.message ?? "") : "", /no reply within/);
 });

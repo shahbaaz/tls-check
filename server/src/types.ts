@@ -2,20 +2,27 @@
 
 export type Verdict = "secure" | "not_secure" | "unknown";
 
-// skip = couldn't check
-export type CheckStatus = "pass" | "fail" | "skip";
+// warn = a problem coming up that doesn't make the site insecure yet; skip = couldn't check
+export type CheckStatus = "pass" | "warn" | "fail" | "skip";
 
 export interface CheckResult {
-  id: string; // e.g. "dns", "port_443", "tls_handshake"
+  id: string; // e.g. "dns", "port_443", "tls_handshake", "expired", "wrong_host", "self_signed"
   status: CheckStatus;
   message?: string;
 }
 
+// Details of the certificate the server sent for the domain (the leaf).
 export interface CertificateSummary {
-  subject: string;
+  subject: string; // e.g. "CN=*.badssl.com, O=BadSSL"
   issuer: string;
-  validTo: string;
-  chain: unknown[];
+  validFrom: string; // ISO 8601
+  validTo: string; // ISO 8601
+  altNames: string[]; // subject alternative names, e.g. ["*.badssl.com", "badssl.com"]
+  publicKey: string; // key type and size, e.g. "RSA 2048", "EC P-256"
+  signatureAlgorithm: string; // how the issuer signed it, e.g. "sha256WithRSAEncryption"
+  serialNumber: string;
+  fingerprint256: string;
+  chain: unknown[]; // filled in by the chain checks (milestone 4)
 }
 
 export interface CheckResponse {
