@@ -116,6 +116,6 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 5. [x] **Name and revocation checks:**
    - [x] **Part 1, name checks:** no domain names in the SAN (fails), no Common Name and no Subject (pass with a note).
    - [x] **Part 2, revocation:** revoked, from the CRL only (no OCSP). "Couldn't check" doesn't change the verdict.
-6. [ ] **GitHub Actions:**
-   - [ ] **Part 1, CI:** a workflow that runs on pull requests and pushes to `main`, required to pass before merging.
-   - [ ] **Part 2, CD:** a limited deploy user on the droplet and a deploy job after CI passes on `main`.
+6. [x] **GitHub Actions:**
+   - [x] **Part 1, CI:** a workflow that runs on pull requests and pushes to `main`, required to pass before merging.
+   - [x] **Part 2, CD:** a limited deploy user on the droplet and a deploy job after CI passes on `main`.
