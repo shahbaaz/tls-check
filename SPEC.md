@@ -103,8 +103,9 @@ https://badssl.com/ (Certificate issues urls)
 Code is pushed to GitHub. The first deploy is done by hand so each step is understood, then automated.
 
 - **CI** (pull requests and pushes to `main`): install, type-check, test, build. Must pass before merging into `main`.
-- **CD** (pushes to `main`, after CI passes): connect to the droplet over SSH, pull, install, build, restart the service, then check that `https://tls.shahbaaz.dev/api/health` responds.
-- Deploys use a separate, limited user on the droplet with its own SSH key, kept in GitHub's encrypted secrets. Not root and not a personal key.
+- **CD** (pushes to `main`, after CI passes): connect to the droplet over SSH, check out the exact commit CI tested, install, build, restart the service, then check that `https://tls.shahbaaz.dev/api/health` responds.
+- Deploys use a separate, limited user on the droplet with its own SSH key, kept in GitHub's encrypted secrets (a `production` environment). Not root and not a personal key.
+- The deploy key can only run `scripts/deploy.sh` (a forced SSH command), which takes the commit hash and refuses anything not on `main`. The deploy user may only restart the service with sudo.
 
 ## Milestones
 
