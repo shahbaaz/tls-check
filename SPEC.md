@@ -102,7 +102,7 @@ https://badssl.com/ (Certificate issues urls)
 
 Code is pushed to GitHub. The first deploy is done by hand so each step is understood, then automated.
 
-- **CI** (every push and pull request): install, type-check, test, build.
+- **CI** (pull requests and pushes to `main`): install, type-check, test, build. Must pass before merging into `main`.
 - **CD** (pushes to `main`, after CI passes): connect to the droplet over SSH, pull, install, build, restart the service, then check that `https://tls.shahbaaz.dev/api/health` responds.
 - Deploys use a separate, limited user on the droplet with its own SSH key, kept in GitHub's encrypted secrets. Not root and not a personal key.
 
@@ -115,5 +115,6 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 5. [x] **Name and revocation checks:**
    - [x] **Part 1, name checks:** no domain names in the SAN (fails), no Common Name and no Subject (pass with a note).
    - [x] **Part 2, revocation:** revoked, from the CRL only (no OCSP). "Couldn't check" doesn't change the verdict.
-   - Also later: expired intermediate certificates.
-6. [ ] **GitHub Actions:** CI first, then CD.
+6. [ ] **GitHub Actions:**
+   - [ ] **Part 1, CI:** a workflow that runs on pull requests and pushes to `main`, required to pass before merging.
+   - [ ] **Part 2, CD:** a limited deploy user on the droplet and a deploy job after CI passes on `main`.
