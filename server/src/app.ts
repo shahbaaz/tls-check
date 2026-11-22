@@ -1,13 +1,19 @@
 import express from "express";
 import type { ErrorRequestHandler } from "express";
 import { checkCertificate, skipCertificateChecks, summarizeCertificate } from "./certificate.ts";
+import { buildPath, checkChain, defaultTrustStore, skipChainChecks, summarizeChain } from "./chain.ts";
+import type { TrustStore } from "./chain.ts";
 import { checkConnection, defaultConnectionOptions } from "./connection.ts";
 import type { ConnectionOptions } from "./connection.ts";
 import { cleanHost } from "./host.ts";
-import type { CheckResponse, ErrorResponse } from "./types.ts";
+import type { CheckResponse, CheckResult, ErrorResponse, Verdict } from "./types.ts";
 
-// Tests pass their own connection options to avoid real DNS and network calls.
-export function createApp(connectionOptions: ConnectionOptions = defaultConnectionOptions) {
+// Tests pass their own connection options to avoid real DNS and network calls,
+// and their own trust store so the test CA counts as a trusted root.
+export function createApp(
+  connectionOptions: ConnectionOptions = defaultConnectionOptions,
+  store: TrustStore = defaultTrustStore,
+) {
   const app = express();
   app.use(express.json({ limit: "1kb" }));
 
@@ -36,19 +42,22 @@ export function createApp(connectionOptions: ConnectionOptions = defaultConnecti
       return;
     }
 
-    const connected = connection.kind === "connected";
-    const checks = [
-      ...connection.checks,
-      ...(connected ? checkCertificate(connection.certificate, cleaned.host, new Date()) : skipCertificateChecks(connection.reason)),
-    ];
-    const body: CheckResponse = {
-      host: cleaned.host,
-      // Warnings don't change the verdict. Until the chain checks (milestone 4) exist,
-      // all-pass stays "unknown": an untrusted certificate would otherwise show as secure.
-      verdict: checks.some((c) => c.status === "fail") ? "not_secure" : "unknown",
-      checks,
-      certificate: connected ? summarizeCertificate(connection.certificate) : null,
-    };
+    let body: CheckResponse;
+    if (connection.kind === "connected") {
+      const { certificate, chain } = connection;
+      const path = buildPath(certificate, chain, store);
+      const checks = [
+        ...connection.checks,
+        ...checkCertificate(certificate, cleaned.host, new Date()),
+        ...checkChain(certificate, path),
+      ];
+      const summary = summarizeCertificate(certificate, summarizeChain(path));
+      body = { host: cleaned.host, verdict: verdict(checks), checks, certificate: summary };
+    } else {
+      const { reason } = connection;
+      const checks = [...connection.checks, ...skipCertificateChecks(reason), ...skipChainChecks(reason)];
+      body = { host: cleaned.host, verdict: verdict(checks), checks, certificate: null };
+    }
     res.json(body);
   });
 
@@ -64,4 +73,12 @@ export function createApp(connectionOptions: ConnectionOptions = defaultConnecti
   app.use(onError);
 
   return app;
+}
+
+// Any failure makes the site not secure; warnings don't change the verdict.
+// Without a failure, a check that couldn't run leaves the verdict unknown.
+function verdict(checks: CheckResult[]): Verdict {
+  if (checks.some((c) => c.status === "fail")) return "not_secure";
+  if (checks.some((c) => c.status === "skip")) return "unknown";
+  return "secure";
 }

@@ -1,4 +1,5 @@
 import { after, before, test } from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { readFileSync } from "node:fs";
@@ -6,6 +7,8 @@ import tls from "node:tls";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app.ts";
+import { trustStore } from "../src/chain.ts";
+import type { CheckResponse } from "../src/types.ts";
 
 // Fake DNS so the route tests never touch the network.
 const notFound = Object.assign(new Error("not found"), { code: "ENOTFOUND" });
@@ -61,6 +64,8 @@ test("POST /api/check cleans the host and reports connection checks", async () =
       { id: "expired", status: "skip", message: "Skipped: domain not found" },
       { id: "wrong_host", status: "skip", message: "Skipped: domain not found" },
       { id: "self_signed", status: "skip", message: "Skipped: domain not found" },
+      { id: "incomplete_chain", status: "skip", message: "Skipped: domain not found" },
+      { id: "untrusted_root", status: "skip", message: "Skipped: domain not found" },
     ],
     certificate: null,
   });
@@ -90,21 +95,21 @@ test("POST /api/check with malformed JSON returns a JSON 400", async () => {
   assert.deepEqual(await res.json(), { error: "Invalid request" });
 });
 
-test("POST /api/check runs the certificate checks against a TLS server", async (t) => {
-  // A local TLS server stands in for test.example, serving the CA-signed fixture certificate.
+// Starts a local TLS server serving the given fixture certificate(s) as test.example, and an app
+// that trusts the test CA, then runs a check against it.
+async function checkFixture(t: TestContext, keyFile: string, certFiles: string[]) {
   const fixtures = new URL("./fixtures/", import.meta.url);
-  const tlsServer = tls.createServer({
-    key: readFileSync(new URL("leaf-key.pem", fixtures)),
-    cert: readFileSync(new URL("leaf-cert.pem", fixtures)),
-  });
+  const pem = (file: string) => readFileSync(new URL(file, fixtures), "utf8");
+  const tlsServer = tls.createServer({ key: pem(keyFile), cert: certFiles.map(pem).join("") });
   tlsServer.listen(0, "127.0.0.1");
   await once(tlsServer, "listening");
-  const app = createApp({
+  const options = {
     resolve: async () => ["127.0.0.1"],
     isBlocked: () => false,
     port: (tlsServer.address() as AddressInfo).port,
     timeoutMs: 300,
-  }).listen(0, "127.0.0.1");
+  };
+  const app = createApp(options, trustStore([pem("ca-cert.pem")])).listen(0, "127.0.0.1");
   await once(app, "listening");
   t.after(() => {
     app.closeAllConnections();
@@ -117,12 +122,55 @@ test("POST /api/check runs the certificate checks against a TLS server", async (
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ host: "test.example" }),
   });
-  const body = await res.json();
+  return (await res.json()) as CheckResponse;
+}
+
+function statuses(body: CheckResponse) {
+  return body.checks.map((c) => `${c.id}:${c.status}`);
+}
+
+const connectionPasses = ["dns:pass", "port_443:pass", "tls_handshake:pass"];
+
+test("POST /api/check runs every check against a TLS server", async (t) => {
+  const body = await checkFixture(t, "leaf-key.pem", ["leaf-cert.pem"]);
+  assert.deepEqual(statuses(body), [
+    ...connectionPasses,
+    "expired:pass",
+    "wrong_host:pass",
+    "self_signed:pass",
+    "incomplete_chain:pass",
+    "untrusted_root:pass",
+  ]);
+  assert.equal(body.verdict, "secure");
+  assert.equal(body.certificate?.subject, "CN=test.example");
+  assert.deepEqual(body.certificate?.altNames, ["test.example", "*.wild.example"]);
   assert.deepEqual(
-    body.checks.map((c: { id: string; status: string }) => `${c.id}:${c.status}`),
-    ["dns:pass", "port_443:pass", "tls_handshake:pass", "expired:pass", "wrong_host:pass", "self_signed:pass"],
+    body.certificate?.chain.map((c) => [c.subject, c.source]),
+    [["CN=TLS Check Test CA", "trust_store"]],
   );
-  assert.equal(body.verdict, "unknown"); // stays unknown until the chain checks exist
-  assert.equal(body.certificate.subject, "CN=test.example");
-  assert.deepEqual(body.certificate.altNames, ["test.example", "*.wild.example"]);
+});
+
+test("POST /api/check collects the intermediate the server sends", async (t) => {
+  const body = await checkFixture(t, "chain-leaf-key.pem", ["chain-leaf-cert.pem", "intermediate-cert.pem"]);
+  assert.equal(body.verdict, "secure");
+  assert.deepEqual(
+    body.certificate?.chain.map((c) => [c.subject, c.source]),
+    [
+      ["CN=TLS Check Test Intermediate", "server"],
+      ["CN=TLS Check Test CA", "trust_store"],
+    ],
+  );
+});
+
+test("POST /api/check reports a missing intermediate as not secure", async (t) => {
+  const body = await checkFixture(t, "chain-leaf-key.pem", ["chain-leaf-cert.pem"]);
+  assert.deepEqual(statuses(body).slice(-2), ["incomplete_chain:fail", "untrusted_root:skip"]);
+  assert.equal(body.verdict, "not_secure");
+  assert.deepEqual(body.certificate?.chain, []);
+});
+
+test("POST /api/check reports a self-signed certificate as not secure", async (t) => {
+  const body = await checkFixture(t, "test-key.pem", ["test-cert.pem"]);
+  assert.deepEqual(statuses(body).slice(-3), ["self_signed:fail", "incomplete_chain:skip", "untrusted_root:skip"]);
+  assert.equal(body.verdict, "not_secure");
 });

@@ -1,6 +1,6 @@
 import type { X509Certificate } from "node:crypto";
 import { fail, pass, skip, warn } from "./check-result.ts";
-import type { CertificateSummary, CheckResult } from "./types.ts";
+import type { CertificateSummary, ChainCertificate, CheckResult } from "./types.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Certificates are getting shorter-lived and renew with about a third of their life left,
@@ -60,14 +60,18 @@ function listNames(names: string[]): string {
 }
 
 function checkSelfSigned(cert: X509Certificate): CheckResult {
-  // Self-signed: the certificate names itself as issuer and its own key signed it.
-  if (cert.checkIssued(cert) && cert.verify(cert.publicKey)) {
+  if (isSelfSigned(cert)) {
     return fail("self_signed", "Self-signed: no trusted authority vouches for this certificate");
   }
   return pass("self_signed", `Issued by ${commonName(cert.issuer) ?? oneLine(cert.issuer)}`);
 }
 
-export function summarizeCertificate(cert: X509Certificate): CertificateSummary {
+// Self-signed: the certificate names itself as issuer and its own key signed it.
+export function isSelfSigned(cert: X509Certificate): boolean {
+  return cert.checkIssued(cert) && cert.verify(cert.publicKey);
+}
+
+export function summarizeCertificate(cert: X509Certificate, chain: ChainCertificate[]): CertificateSummary {
   return {
     subject: oneLine(cert.subject),
     issuer: oneLine(cert.issuer),
@@ -78,17 +82,17 @@ export function summarizeCertificate(cert: X509Certificate): CertificateSummary 
     signatureAlgorithm: cert.signatureAlgorithm ?? "Unknown",
     serialNumber: cert.serialNumber,
     fingerprint256: cert.fingerprint256,
-    chain: [],
+    chain,
   };
 }
 
 // Node gives names one field per line ("C=US\nCN=example.com").
-function oneLine(name: string): string {
+export function oneLine(name: string): string {
   return name.split("\n").filter(Boolean).join(", ");
 }
 
 // The CN field of a name, e.g. "COMODO RSA Domain Validation Secure Server CA".
-function commonName(name: string): string | undefined {
+export function commonName(name: string): string | undefined {
   return name.split("\n").find((field) => field.startsWith("CN="))?.slice(3) || undefined;
 }
 

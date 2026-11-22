@@ -6,7 +6,8 @@ export type Verdict = "secure" | "not_secure" | "unknown";
 export type CheckStatus = "pass" | "warn" | "fail" | "skip";
 
 export interface CheckResult {
-  id: string; // e.g. "dns", "port_443", "tls_handshake", "expired", "wrong_host", "self_signed"
+  // "dns", "port_443", "tls_handshake", "expired", "wrong_host", "self_signed", "incomplete_chain", "untrusted_root"
+  id: string;
   status: CheckStatus;
   message?: string;
 }
@@ -22,7 +23,18 @@ export interface CertificateSummary {
   signatureAlgorithm: string; // how the issuer signed it, e.g. "sha256WithRSAEncryption"
   serialNumber: string;
   fingerprint256: string;
-  chain: unknown[]; // filled in by the chain checks (milestone 4)
+  chain: ChainCertificate[]; // the certificates above the leaf, up to the root
+}
+
+// One certificate in the chain above the leaf, in order from the leaf's issuer up to the root.
+export interface ChainCertificate {
+  subject: string;
+  issuer: string;
+  validFrom: string; // ISO 8601
+  validTo: string; // ISO 8601
+  fingerprint256: string;
+  // server = sent by the server; trust_store = a trusted root (Node adds it even when the server didn't send it)
+  source: "server" | "trust_store";
 }
 
 export interface CheckResponse {

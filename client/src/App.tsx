@@ -1,6 +1,13 @@
 import { useState } from "react";
 import type { SubmitEvent } from "react";
-import type { CertificateSummary, CheckResponse, CheckResult, CheckStatus, ErrorResponse } from "../../server/src/types.ts";
+import type {
+  CertificateSummary,
+  ChainCertificate,
+  CheckResponse,
+  CheckResult,
+  CheckStatus,
+  ErrorResponse,
+} from "../../server/src/types.ts";
 
 type RequestState =
   | { kind: "idle" }
@@ -16,6 +23,8 @@ const checkLabels: Record<string, string> = {
   expired: "Expiry date",
   wrong_host: "Domain name match",
   self_signed: "Certificate issuer",
+  incomplete_chain: "Intermediate certificates",
+  untrusted_root: "Trusted root",
 };
 
 const statusLabels: Record<CheckStatus, string> = {
@@ -102,6 +111,7 @@ function Results({ result }: { result: CheckResponse }) {
         ))}
       </ul>
       {result.certificate && <CertificateDetails certificate={result.certificate} />}
+      {result.certificate && <Chain certificate={result.certificate} />}
     </section>
   );
 }
@@ -126,7 +136,7 @@ function Verdict({ result }: { result: CheckResponse }) {
   return (
     <>
       <h2 className="verdict verdict-unknown">No problems found so far{warningText ? ` (${warningText})` : ""}</h2>
-      <p className="note">The trust chain isn't checked yet, so this isn't a full verdict.</p>
+      <p className="note">Some checks couldn't run, so this isn't a full verdict.</p>
     </>
   );
 }
@@ -172,6 +182,43 @@ function CertificateDetails({ certificate }: { certificate: CertificateSummary }
       </dl>
     </section>
   );
+}
+
+// The path from the site's certificate up to the root, so the user can see which certificates
+// the server sent and which root it ends at.
+function Chain({ certificate }: { certificate: CertificateSummary }) {
+  return (
+    <section className="certificate">
+      <h3>Chain</h3>
+      <ol className="chain">
+        <li>
+          <span className="chain-name">{name(certificate.subject)}</span>
+          <span className="chain-detail">This site's certificate</span>
+        </li>
+        {certificate.chain.map((cert) => (
+          <ChainRow key={cert.fingerprint256} cert={cert} />
+        ))}
+      </ol>
+      {certificate.chain.length === 0 && <p className="note">No certificates above this one were found.</p>}
+    </section>
+  );
+}
+
+function ChainRow({ cert }: { cert: ChainCertificate }) {
+  const source = cert.source === "trust_store" ? "Trusted root" : "Sent by the server";
+  return (
+    <li>
+      <span className="chain-name">{name(cert.subject)}</span>
+      <span className="chain-detail">
+        {source} · valid until {formatDate(cert.validTo)}
+      </span>
+    </li>
+  );
+}
+
+// The CN of a one-line name ("C=US, O=Let's Encrypt, CN=YR1" -> "YR1"), or the whole name.
+function name(subject: string): string {
+  return /(?:^|, )CN=([^,]+)/.exec(subject)?.[1] ?? subject;
 }
 
 function formatDate(iso: string): string {

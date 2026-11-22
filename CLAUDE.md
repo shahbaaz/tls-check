@@ -35,8 +35,8 @@ Run from the repo root:
 ## Layout
 
 - `server/src/app.ts` builds the Express app (`createApp()`); `server/src/index.ts` only starts it. Tests start `createApp()` on a random port and call it with `fetch`.
-- `server/src/connection.ts` runs the connection checks and returns the leaf certificate; `server/src/certificate.ts` runs the certificate checks on it.
-- Test certificates live in `server/test/fixtures/`; `make-ca-signed-certs.sh` there remakes the CA-signed ones.
+- `server/src/connection.ts` runs the connection checks and returns the leaf certificate and the chain; `server/src/certificate.ts` runs the certificate checks on the leaf; `server/src/chain.ts` builds the path to a root and runs the chain checks.
+- Test certificates live in `server/test/fixtures/`; `make-ca-signed-certs.sh` there remakes the CA-signed ones (a test root, an intermediate and leaves). Tests pass their own trust store to `createApp()` so the test root counts as trusted.
 - `server/src/types.ts` holds the API response types. The client imports them with `import type`, so the server and client agree on the shape.
 
 ## Key design points
