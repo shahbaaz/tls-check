@@ -1,7 +1,9 @@
+import type { X509Certificate } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 import tls from "node:tls";
 import { isBlockedAddress } from "./blocklist.ts";
+import { fail, pass, skip } from "./check-result.ts";
 import type { CheckResult } from "./types.ts";
 
 export interface ConnectionOptions {
@@ -20,7 +22,9 @@ export const defaultConnectionOptions: ConnectionOptions = {
 
 export type ConnectionResult =
   | { kind: "blocked" } // resolves to a private or internal address: refuse to connect
-  | { kind: "checked"; checks: CheckResult[] };
+  | { kind: "connected"; checks: CheckResult[]; certificate: X509Certificate }
+  // reason says why no certificate was collected, for the certificate checks' "skip" rows
+  | { kind: "failed"; checks: CheckResult[]; reason: string };
 
 // Runs the dns, port_443 and tls_handshake checks. A failed check makes the later ones "skip".
 export async function checkConnection(
@@ -33,11 +37,12 @@ export async function checkConnection(
   } catch (err) {
     const message = dnsMessage(err);
     const reason = message === "Domain not found" ? "domain not found" : "DNS lookup failed";
-    return checked(fail("dns", message), skip("port_443", reason), skip("tls_handshake", reason));
+    return failed(reason, fail("dns", message), skip("port_443", reason), skip("tls_handshake", reason));
   }
   const address = addresses[0];
   if (address === undefined) {
-    return checked(fail("dns", "Domain not found"), skip("port_443", "domain not found"), skip("tls_handshake", "domain not found"));
+    const reason = "domain not found";
+    return failed(reason, fail("dns", "Domain not found"), skip("port_443", reason), skip("tls_handshake", reason));
   }
   // Check every address, not just the one we use, so a mixed public/private answer is refused.
   if (addresses.some(options.isBlocked)) return { kind: "blocked" };
@@ -47,7 +52,8 @@ export async function checkConnection(
   try {
     socket = await openSocket(address, options.port, options.timeoutMs);
   } catch (err) {
-    return checked(dns, fail("port_443", portMessage(err, options.timeoutMs)), skip("tls_handshake", "port 443 didn't answer"));
+    const reason = "port 443 didn't answer";
+    return failed(reason, dns, fail("port_443", portMessage(err, options.timeoutMs)), skip("tls_handshake", reason));
   }
   const port = pass("port_443", "Port 443 is open");
 
@@ -56,10 +62,13 @@ export async function checkConnection(
   try {
     const tlsSocket = await handshake(socket, host, options.timeoutMs);
     const protocol = tlsSocket.getProtocol();
+    const certificate = tlsSocket.getPeerX509Certificate();
     tlsSocket.destroy();
-    return checked(dns, port, pass("tls_handshake", `Handshake completed${protocol ? ` (${protocol})` : ""}`));
+    const tlsCheck = pass("tls_handshake", `Handshake completed${protocol ? ` (${protocol})` : ""}`);
+    if (!certificate) return failed("no certificate received", dns, port, tlsCheck);
+    return { kind: "connected", checks: [dns, port, tlsCheck], certificate };
   } catch (err) {
-    return checked(dns, port, fail("tls_handshake", `TLS handshake failed: ${errorText(err)}`));
+    return failed("TLS handshake failed", dns, port, fail("tls_handshake", `TLS handshake failed: ${errorText(err)}`));
   }
 }
 
@@ -130,18 +139,6 @@ function errorText(err: unknown): string {
   return errorCode(err) ?? (err instanceof Error ? err.message : String(err));
 }
 
-function checked(...checks: CheckResult[]): ConnectionResult {
-  return { kind: "checked", checks };
-}
-
-function pass(id: string, message: string): CheckResult {
-  return { id, status: "pass", message };
-}
-
-function fail(id: string, message: string): CheckResult {
-  return { id, status: "fail", message };
-}
-
-function skip(id: string, reason: string): CheckResult {
-  return { id, status: "skip", message: `Skipped: ${reason}` };
+function failed(reason: string, ...checks: CheckResult[]): ConnectionResult {
+  return { kind: "failed", checks, reason };
 }

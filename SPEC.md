@@ -1,4 +1,4 @@
-### tls.shahbaaz.dev
+### TLS Check
 
 Find out what exactly is wrong about your website's certificate
 
@@ -36,6 +36,9 @@ https://badssl.com/ (Certificate issues urls)
   - **Nothing answers on port 443:** the connection is refused or times out (5 s timeout). Reported as not secure.
   - **Not speaking TLS:** port 443 is open but the TLS handshake fails. Reported as not secure.
   - (Later) A site has HTTPS but plain HTTP doesn't redirect to it: a warning, not a failure.
+- **Expiry:** fails when the certificate has expired or isn't valid yet. Under 14 days left is a **warning**, not a failure: certificates are getting shorter-lived and renew with about a third of their life left, so 14 days means renewal is overdue.
+- **Wrong host:** matched the way browsers do: only subject alternative names count (not the Common Name), and a wildcard covers one whole label.
+- **Self-signed:** the leaf certificate is signed by its own key. (Untrusted root, in M4, looks at the whole chain and is skipped for a self-signed certificate rather than counting the same problem twice.)
 - **Incomplete chain:** the server doesn't send the intermediate certificate(s). Some browsers fetch the missing piece themselves, so the site "works in Chrome" but fails in other clients.
 - **Revocation:** checked with OCSP/CRL, built last. If the CA's server can't be reached, the result is "couldn't check", never a pass.
 - **Trust store:** use Node's bundled Mozilla root list (`tls.rootCertificates`). It's the default and the same on the laptop and the droplet. "Untrusted root" means the chain doesn't end at a root on this list.
@@ -69,10 +72,10 @@ https://badssl.com/ (Certificate issues urls)
 }
 ```
 
-- `verdict`: `secure` | `not_secure` | `unknown`
-- `status`: `pass` | `fail` | `skip` (skip = couldn't check)
-- Connection checks come first: `dns`, `port_443`, `tls_handshake`. When one fails, the later ones are `skip`.
-- `certificate` is `null` when no certificate was collected (DNS, port 443 or the TLS handshake failed).
+- `verdict`: `secure` | `not_secure` | `unknown`. Any `fail` gives `not_secure`; warnings don't change the verdict. Until the chain checks (M4) exist, all-pass is `unknown`, so an untrusted certificate never shows as secure.
+- `status`: `pass` | `warn` | `fail` | `skip` (skip = couldn't check)
+- Connection checks come first: `dns`, `port_443`, `tls_handshake`. Then the certificate checks: `expired`, `wrong_host`, `self_signed`. When a connection check fails, every later check is `skip`.
+- `certificate` describes the leaf: `subject`, `issuer`, `validFrom`, `validTo`, `altNames`, `publicKey`, `signatureAlgorithm`, `serialNumber`, `fingerprint256` and `chain` (filled in M4). It is `null` when no certificate was collected (DNS, port 443 or the TLS handshake failed).
 - Invalid input, or a domain that resolves to a private or internal address, returns `400` with `{ "error": "..." }`.
 - Nginx rate-limits `/api/` per client IP; over the limit returns `429`.
 - `GET /api/health` returns `{ "ok": true }` for deploy checks.
@@ -99,7 +102,7 @@ Code is pushed to GitHub. The first deploy is done by hand so each step is under
 
 1. [x] **Skeleton, deployed:** a form that calls `POST /api/check` and gets a stub reply, live at `tls.shahbaaz.dev` behind Nginx, systemd and Certbot.
 2. [x] **Connection checks:** domain not found, nothing on port 443, not speaking TLS.
-3. [ ] **Certificate details plus easy checks:** expired, wrong host, self-signed.
+3. [ ] **Certificate details plus easy checks:** expired (warning under 14 days left), wrong host, self-signed. The page shows the results as a list.
 4. [ ] **Chain checks:** untrusted root, incomplete chain.
 5. [ ] **Later:** revoked, no Common Name, no Subject.
 6. [ ] **GitHub Actions:** CI first, then CD.

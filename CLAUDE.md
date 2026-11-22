@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**`SPEC.md` is the source of truth** for requirements and decisions: product behavior, the API, the tech stack, CI/CD and the milestones. The scaffold exists; `POST /api/check` is still a stub.
+**`SPEC.md` is the source of truth** for requirements and decisions: product behavior, the API, the tech stack, CI/CD and the milestones. Milestones 1–2 are live; see SPEC.md for what's next.
 
 This is the owner's personal learning project. They want to talk through decisions before any files are created or changed, so wait for an explicit go-ahead before building.
 
@@ -12,7 +12,7 @@ Build in SPEC.md milestone order; revocation comes last.
 
 ## What it is
 
-**tls.shahbaaz.dev**: the user types a domain name, and the tool reports every problem with that site's TLS certificate as a pass/fail list, with an overall verdict on top.
+**TLS Check** (deployed at tls.shahbaaz.dev): the user types a domain name, and the tool reports every problem with that site's TLS certificate as a pass/fail list, with an overall verdict on top.
 
 ## Stack (details in SPEC.md)
 
@@ -35,6 +35,8 @@ Run from the repo root:
 ## Layout
 
 - `server/src/app.ts` builds the Express app (`createApp()`); `server/src/index.ts` only starts it. Tests start `createApp()` on a random port and call it with `fetch`.
+- `server/src/connection.ts` runs the connection checks and returns the leaf certificate; `server/src/certificate.ts` runs the certificate checks on it.
+- Test certificates live in `server/test/fixtures/`; `make-ca-signed-certs.sh` there remakes the CA-signed ones.
 - `server/src/types.ts` holds the API response types. The client imports them with `import type`, so the server and client agree on the shape.
 
 ## Key design points

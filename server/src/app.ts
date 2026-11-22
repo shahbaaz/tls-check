@@ -1,5 +1,6 @@
 import express from "express";
 import type { ErrorRequestHandler } from "express";
+import { checkCertificate, skipCertificateChecks, summarizeCertificate } from "./certificate.ts";
 import { checkConnection, defaultConnectionOptions } from "./connection.ts";
 import type { ConnectionOptions } from "./connection.ts";
 import { cleanHost } from "./host.ts";
@@ -35,13 +36,18 @@ export function createApp(connectionOptions: ConnectionOptions = defaultConnecti
       return;
     }
 
-    const { checks } = connection;
+    const connected = connection.kind === "connected";
+    const checks = [
+      ...connection.checks,
+      ...(connected ? checkCertificate(connection.certificate, cleaned.host, new Date()) : skipCertificateChecks(connection.reason)),
+    ];
     const body: CheckResponse = {
       host: cleaned.host,
-      // Certificate checks come in later milestones, so passing connection checks alone give "unknown".
+      // Warnings don't change the verdict. Until the chain checks (milestone 4) exist,
+      // all-pass stays "unknown": an untrusted certificate would otherwise show as secure.
       verdict: checks.some((c) => c.status === "fail") ? "not_secure" : "unknown",
       checks,
-      certificate: null,
+      certificate: connected ? summarizeCertificate(connection.certificate) : null,
     };
     res.json(body);
   });
