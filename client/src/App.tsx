@@ -89,6 +89,11 @@ export function App() {
         </p>
       )}
       {request.kind === "done" && <Results result={request.result} />}
+      <footer>
+        <a href="https://github.com/shahbaaz/tls-check" target="_blank" rel="noopener noreferrer">
+          Source on GitHub
+        </a>
+      </footer>
     </main>
   );
 }
