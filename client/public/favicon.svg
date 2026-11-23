@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .shackle { fill: none; stroke: #1a7f37; }
+    .body { fill: #1a7f37; }
+    @media (prefers-color-scheme: dark) {
+      .shackle { stroke: #3fb950; }
+      .body { fill: #3fb950; }
+    }
+  </style>
+  <path class="shackle" d="M10 14V10a6 6 0 0 1 12 0v4" stroke-width="3.5" stroke-linecap="round" />
+  <rect class="body" x="5" y="14" width="22" height="16" rx="3" />
+  <circle cx="16" cy="21" r="2.5" fill="#fff" />
+  <rect x="14.75" y="21" width="2.5" height="5" rx="1.25" fill="#fff" />
+</svg>
