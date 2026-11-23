@@ -15,7 +15,7 @@ Find out exactly what's wrong with a website's TLS certificate. Enter a domain a
 - Self-signed
 - Untrusted root (the chain doesn't end at a root in Node's bundled Mozilla list)
 - Incomplete chain (the server doesn't send its intermediate certificates)
-- Revoked (OCSP/CRL; "couldn't check" if the CA can't be reached)
+- Revoked (CRL; "couldn't check" if there's no CRL or it can't be fetched or verified)
 - No Common Name, no Subject
 
 It also reports sites with no https: the domain isn't found, nothing answers on port 443, or the TLS handshake fails.
