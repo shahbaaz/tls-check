@@ -1,8 +1,12 @@
 # TLS Check
 
+[![CI](https://github.com/shahbaaz/tls-check/actions/workflows/ci.yml/badge.svg)](https://github.com/shahbaaz/tls-check/actions/workflows/ci.yml)
+
+**Live at [tls.shahbaaz.dev](https://tls.shahbaaz.dev)**
+
 Find out exactly what's wrong with a website's TLS certificate. Enter a domain and get every problem as a pass / fail list, with an overall verdict on top.
 
-**Status:** in development. Connection and basic certificate checks (expired, wrong host, self-signed) work; chain and revocation checks are next. See the milestones in [SPEC.md](SPEC.md).
+**Status:** live. All milestones in [SPEC.md](SPEC.md) are done.
 
 ## What it checks
 
@@ -72,11 +76,21 @@ The server looks up the domain first and refuses private and internal IP address
 
 ## Deployment
 
-A DigitalOcean droplet. Nginx serves the client build and passes `/api/` to Node on `127.0.0.1:3000`, systemd keeps Node running, and Certbot provides the certificate. GitHub Actions will run CI and deploy over SSH.
+A DigitalOcean droplet. Nginx serves the client build and passes `/api/` to Node on `127.0.0.1:3000`, systemd keeps Node running, and Certbot provides the certificate. GitHub Actions runs CI (typecheck, tests, build) on every pull request and push, and deploys over SSH after CI passes on `main`.
 
 ## Testing against real sites
 
-[badssl.com](https://badssl.com/) has a subdomain for each kind of certificate problem, such as `expired.badssl.com`, `wrong.host.badssl.com` and `self-signed.badssl.com`.
+[badssl.com](https://badssl.com/) has a subdomain for each kind of certificate problem. Results from the live site on 2026-11-22:
+
+| Host | Verdict | Failed check |
+|---|---|---|
+| `badssl.com` | Secure | none |
+| `expired.badssl.com` | Not secure | Expired |
+| `wrong.host.badssl.com` | Not secure | Wrong host |
+| `self-signed.badssl.com` | Not secure | Self-signed |
+| `untrusted-root.badssl.com` | Not secure | Untrusted root |
+| `incomplete-chain.badssl.com` | Not secure | Incomplete chain |
+| `revoked.badssl.com` | Not secure | Revoked |
 
 ## License
 

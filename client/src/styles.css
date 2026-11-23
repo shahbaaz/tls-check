@@ -15,6 +15,15 @@ main {
   padding: 0 1rem;
 }
 
+footer {
+  margin-top: 3rem;
+  font-size: 0.875rem;
+}
+
+footer a {
+  color: var(--muted);
+}
+
 label {
   display: block;
   margin-bottom: 0.4rem;
